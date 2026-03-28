@@ -44,18 +44,21 @@ async function addToInventory(db, manufacturer, modelName, category, qty, price,
     return { oldAvg: 0, newAvg: price, pctChange: 0 };
   }
 
+  const wasZero  = inv.current_stock === 0;
   const newStock = inv.current_stock + qty;
   const oldAvg   = inv.avg_purchase_price;
-  const newAvg   = newStock > 0
-    ? (inv.current_stock * oldAvg + qty * price) / newStock
-    : 0;
+  // 재고 소진 후 재매입이면 이동평균 리셋
+  const newAvg   = wasZero
+    ? price
+    : (newStock > 0 ? (inv.current_stock * oldAvg + qty * price) / newStock : 0);
   const pctChange = oldAvg > 0 ? Math.abs(newAvg - oldAvg) / oldAvg : 0;
 
+  const avgReason = wasZero ? '재고 소진 후 재매입 - 평균 리셋' : '입고';
   if (Math.abs(newAvg - oldAvg) > 0.001) {
     await db.runAsync(
       `INSERT INTO avg_price_history (id, manufacturer, model_name, spec, old_avg, new_avg, changed_at, reason)
-       VALUES (?, ?, ?, ?, ?, ?, ?, '입고')`,
-      [uuidv4(), manufacturer, modelName, specVal, oldAvg, newAvg, n]
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [uuidv4(), manufacturer, modelName, specVal, oldAvg, newAvg, n, avgReason]
     );
   }
   await db.runAsync(

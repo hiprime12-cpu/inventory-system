@@ -312,6 +312,7 @@ function obAddRow() {
       oninput="obCalcRow(${idx})" style="width:60px" /></td>
     <td><input class="ob-inp ob-inp-price" type="number" min="0" placeholder="0"
       oninput="obCalcRow(${idx})" /></td>
+    <td class="ob-cell-subtotal" style="text-align:right;color:var(--gray-600);font-size:.88rem">0</td>
     <td class="ob-cell-tax" style="text-align:right;color:var(--gray-600);font-size:.82rem">0</td>
     <td class="ob-cell-total" style="text-align:right;font-weight:600">0</td>
     <td><input class="ob-inp ob-inp-notes" type="text" placeholder="비고" /></td>
@@ -350,8 +351,9 @@ function obCalcRow(idx) {
   const taxRate = _obTaxType === '10' ? 0.1 : 0;
   const taxAmt  = Math.round(qty * price * taxRate);
   const total   = qty * price + taxAmt;
-  row.querySelector('.ob-cell-tax').textContent   = taxAmt.toLocaleString();
-  row.querySelector('.ob-cell-total').textContent = total.toLocaleString();
+  row.querySelector('.ob-cell-subtotal').textContent = (qty * price).toLocaleString();
+  row.querySelector('.ob-cell-tax').textContent      = taxAmt.toLocaleString();
+  row.querySelector('.ob-cell-total').textContent    = total.toLocaleString();
 
   // 재고 초과 경고
   const maxStock = row.dataset.maxStock;

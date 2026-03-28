@@ -1319,3 +1319,116 @@ textarea.form-control { resize: vertical; min-height: 70px; }
   .nav-sub-list     { padding: 0; }
   .nav-sub-link     { padding: .48rem .65rem !important; justify-content: center; }
 }
+
+/* ════════════════════════════════════════════════════════════════
+   판매현황 (8단계)
+════════════════════════════════════════════════════════════════ */
+
+/* ── 날짜 범위 ── */
+.sl-date-wrap {
+  display: flex; align-items: center; gap: .4rem; flex-wrap: wrap;
+}
+.sl-date-inp { width: 130px; height: 32px; padding: .25rem .5rem; font-size: .82rem; }
+.sl-date-sep { color: var(--gray-500); font-size: .9rem; }
+
+/* ── 검색 바 ── */
+.sl-search-bar {
+  display: flex; align-items: center; gap: .4rem; flex-wrap: wrap;
+  padding: .55rem .2rem .4rem;
+}
+.sl-search-inp { height: 32px; font-size: .82rem; }
+
+/* ── 탭 바 ── */
+.sl-tab-bar { margin-bottom: 0; }
+
+/* ── 테이블 래퍼 ── */
+.sl-table-wrap {
+  overflow-x: auto; border: 1px solid var(--gray-200);
+  border-radius: var(--radius) var(--radius) 0 0;
+  flex: 1; min-height: 0;
+}
+
+/* ── 판매 테이블 ── */
+.sl-table {
+  width: 100%; border-collapse: collapse; background: #fff;
+  font-size: .82rem;
+}
+.sl-table thead tr { background: var(--gray-50); position: sticky; top: 0; z-index: 2; }
+.sl-table th {
+  padding: .5rem .65rem;
+  font-size: .73rem; font-weight: 700; color: var(--gray-600);
+  border-bottom: 2px solid var(--gray-200); white-space: nowrap;
+  text-align: left;
+}
+.sl-table th.sl-num, .sl-table td.sl-num { text-align: right; }
+.sl-table td {
+  padding: .4rem .65rem; border-bottom: 1px solid var(--gray-100);
+  white-space: nowrap; vertical-align: middle;
+}
+.sl-table tbody tr:hover { background: var(--gray-50); }
+.sl-table td.empty { text-align: center; color: var(--gray-400); padding: 2rem; }
+
+/* ── 행 유형별 왼쪽 컬러 강조 ── */
+.sl-row.sl-type-return_deducted { border-left: 3px solid #74c0fc; }
+.sl-row.sl-type-exchange        { border-left: 3px solid #f783ac; }
+.sl-row.sl-type-normal          { border-left: 3px solid transparent; }
+
+/* ── 셀 스타일 ── */
+.sl-date   { color: var(--gray-600); font-size: .78rem; }
+.sl-brand  { font-weight: 600; color: var(--text); }
+.sl-model  { font-weight: 500; }
+.sl-vendor { color: var(--gray-600); font-size: .8rem; }
+.sl-avg-price { color: var(--gray-500); }
+
+.sl-spec-tag {
+  display: inline-block; font-size: .72rem; background: var(--gray-100);
+  color: var(--gray-600); border-radius: 4px; padding: .05rem .35rem;
+}
+.sl-empty-spec { color: var(--gray-300); }
+
+/* ── 수량 반품 표시 ── */
+.sl-qty-reduced { font-weight: 700; color: var(--text); }
+.sl-qty-orig    { font-size: .75rem; color: var(--gray-400); text-decoration: line-through; }
+
+/* ── 순수익 색상 ── */
+.sl-profit-pos { color: #2f9e44; font-weight: 600; }
+.sl-profit-neg { color: #e03131; font-weight: 600; }
+
+/* ── 유형 뱃지 ── */
+.sl-type-badge {
+  display: inline-block; font-size: .72rem; border-radius: 99px;
+  padding: .15rem .5rem; font-weight: 600; white-space: nowrap;
+}
+.sl-type-normal   { background: #e9ecef; color: var(--gray-600); }
+.sl-type-return   { background: #e7f5ff; color: #1971c2; }
+.sl-type-exchange { background: #fff0f6; color: #c2255c; }
+
+/* ── 우선등록 뱃지 ── */
+.sl-priority-badge {
+  display: inline-block; font-size: .75rem; color: #f59f00;
+  vertical-align: middle; margin-left: 2px;
+}
+
+/* ── 하단 요약 바 ── */
+.sl-summary-bar {
+  display: flex; align-items: center; gap: 0;
+  border: 1px solid var(--gray-200); border-top: none;
+  background: var(--gray-50);
+  border-radius: 0 0 var(--radius) var(--radius);
+  padding: .6rem 1rem; flex-wrap: wrap; gap: .5rem 1.2rem;
+}
+.sl-sum-item {
+  display: flex; flex-direction: column; gap: .1rem; min-width: 80px;
+}
+.sl-sum-label {
+  font-size: .68rem; font-weight: 600; color: var(--gray-500);
+  text-transform: uppercase; letter-spacing: .03em;
+}
+.sl-sum-val {
+  font-size: .9rem; font-weight: 700; color: var(--text);
+}
+.sl-sum-sales { color: #1971c2; }
+.sl-sum-gray  { color: var(--gray-600); font-weight: 600; }
+.sl-sum-divider {
+  width: 1px; background: var(--gray-200); align-self: stretch; margin: 0 .2rem;
+}

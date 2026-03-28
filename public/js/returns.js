@@ -555,6 +555,9 @@ function rtFillReturnRow(idx, it) {
   if (it.outbound_qty) {
     row.querySelector('.rt-ri-qty').dataset.max = it.outbound_qty;
   }
+  if (it.outbound_item_id) {
+    row.dataset.outboundItemId = it.outbound_item_id;
+  }
 }
 
 // ── 교환 출고 품목 행 관리 ────────────────────
@@ -910,7 +913,7 @@ async function rtSave() {
       spec:        row.querySelector('.rt-ri-spec')?.value?.trim()    || '',
       quantity:    qty,
       notes:       row.querySelector('.rt-ri-notes')?.value?.trim()   || null,
-      outbound_item_id: null, // TODO: if linked, pass outbound_item_id
+      outbound_item_id: row.dataset.outboundItemId || null,
     });
   });
 

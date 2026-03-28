@@ -125,6 +125,7 @@ function showPage(name) {
     inbound:            () => loadInboundList(),
     outbound:           () => loadOutboundList(),
     returns:            () => loadReturnsList(),
+    sales:              () => loadSalesList(),
     company:            () => loadCompanyInfo(),
   };
   if (loaders[name]) loaders[name]();
@@ -317,10 +318,12 @@ document.getElementById('nav-list').addEventListener('click', (e) => {
 document.querySelectorAll('.tab').forEach(btn => {
   btn.addEventListener('click', () => {
     const tabName = btn.dataset.tab;
+    if (!tabName) return;   // data-tab 없는 버튼(입고 등 자체 탭)은 무시
     document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
     document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
     btn.classList.add('active');
-    document.getElementById(`tab-${tabName}`).classList.add('active');
+    const target = document.getElementById(`tab-${tabName}`);
+    if (target) target.classList.add('active');
   });
 });
 

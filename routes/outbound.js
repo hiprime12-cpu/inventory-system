@@ -49,11 +49,14 @@ async function fetchOrdersWithItems(db, where = 'o.is_deleted = 0', params = [])
   });
 }
 
-// GET /api/outbound — all orders with items + summary
+// GET /api/outbound — all orders with items + summary (교환출고 제외)
 router.get('/', auth('editor'), async (req, res) => {
   try {
     const db = getDB();
-    const orders = await fetchOrdersWithItems(db);
+    const orders = await fetchOrdersWithItems(
+      db,
+      "o.is_deleted = 0 AND (o.exchange_return_id IS NULL OR o.exchange_return_id = '')"
+    );
     res.json(orders);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -102,6 +105,21 @@ router.post('/', auth('editor'), async (req, res) => {
     const n = nowStr();
     const taxT = (tax_type === '10') ? '10' : 'none';
 
+    // 우선등록 재고 유무 사전 확인
+    const priorityCheckMap = {};
+    for (const it of items) {
+      const key = `${it.manufacturer}|${it.model_name}|${(it.spec||'').toLowerCase().trim()}`;
+      if (!(key in priorityCheckMap)) {
+        const pRow = await db.getAsync(
+          `SELECT COALESCE(SUM(quantity),0) AS pqty FROM inbound
+           WHERE manufacturer=? AND model_name=? AND COALESCE(spec,'')=?
+             AND status='priority' AND is_deleted=0`,
+          [it.manufacturer, it.model_name, (it.spec||'').toLowerCase().trim()]
+        );
+        priorityCheckMap[key] = (pRow?.pqty || 0) > 0 ? 1 : 0;
+      }
+    }
+
     let orderTotal = 0;
     const itemRows = items.map(it => {
       const inv = it._inv;
@@ -113,6 +131,7 @@ router.post('/', auth('editor'), async (req, res) => {
       const avgPrice = inv.avg_purchase_price || 0;
       const profitUnit = salePrice - avgPrice;
       const totalProfit = profitUnit * qty;
+      const key = `${it.manufacturer}|${it.model_name}|${(it.spec||'').toLowerCase().trim()}`;
       orderTotal += rowTotal;
       return {
         id: uuidv4(),
@@ -128,6 +147,7 @@ router.post('/', auth('editor'), async (req, res) => {
         avg_purchase_price: avgPrice,
         profit_per_unit: profitUnit,
         total_profit: totalProfit,
+        is_priority_stock: priorityCheckMap[key] || 0,
         notes: it.notes || null,
         inv_id: inv.id,
       };
@@ -145,11 +165,13 @@ router.post('/', auth('editor'), async (req, res) => {
       await db.runAsync(
         `INSERT INTO outbound_items
            (id, order_id, category, manufacturer, model_name, spec, quantity, sale_price,
-            tax_amount, total_price, avg_purchase_price, profit_per_unit, total_profit, notes, created_at, created_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            tax_amount, total_price, avg_purchase_price, profit_per_unit, total_profit,
+            is_priority_stock, notes, created_at, created_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [row.id, row.order_id, row.category, row.manufacturer, row.model_name, row.spec,
          row.quantity, row.sale_price, row.tax_amount, row.total_price,
-         row.avg_purchase_price, row.profit_per_unit, row.total_profit, row.notes, n, req.user.id]
+         row.avg_purchase_price, row.profit_per_unit, row.total_profit,
+         row.is_priority_stock || 0, row.notes, n, req.user.id]
       );
 
       await db.runAsync(

@@ -137,9 +137,19 @@ router.get('/:id/history', auth('viewer'), async (req, res) => {
       [manufacturer, model_name, specVal]
     );
 
-    // 출고 이력
-    const outboundRows = await db.allAsync(
-      `SELECT oi.*, oo.order_date, oo.vendor_name, oo.id as order_id_ref
+    // 교환으로 반품된 원판매 outbound_item_id 목록 (A상품 원판매 — 출고이력에서 제외)
+    const exchangedOutItemIds = (await db.allAsync(
+      `SELECT ri.outbound_item_id
+       FROM return_items ri
+       JOIN return_orders ro ON ri.return_order_id = ro.id
+       WHERE ro.type = 'exchange' AND ro.is_deleted = 0
+         AND ri.outbound_item_id IS NOT NULL`
+    )).map(r => r.outbound_item_id);
+
+    // 일반 출고 이력 (교환출고 제외 + 교환으로 반품된 원판매 제외)
+    const allOutboundRows = await db.allAsync(
+      `SELECT oi.*, oo.order_date, oo.vendor_name, oo.id as order_id_ref,
+              oo.exchange_return_id, oo.notes AS order_notes
        FROM outbound_items oi
        INNER JOIN outbound_orders oo ON oi.order_id=oo.id
        WHERE oi.manufacturer=? AND oi.model_name=? AND COALESCE(oi.spec,'')=?
@@ -148,14 +158,24 @@ router.get('/:id/history', auth('viewer'), async (req, res) => {
       [manufacturer, model_name, specVal]
     );
 
-    // 반품 이력
+    // exchange_return_id 있거나 notes 패턴으로 교환출고 판별
+    const isExchangeOrder = r =>
+      (r.exchange_return_id && r.exchange_return_id !== '') ||
+      (r.order_notes && r.order_notes.startsWith('교환출고 (접수번호: '));
+
+    const outboundRows = allOutboundRows.filter(r =>
+      !isExchangeOrder(r) && !exchangedOutItemIds.includes(r.id)
+    );
+    const exchangeOutboundRows = allOutboundRows.filter(r => isExchangeOrder(r));
+
+    // 반품 이력 (일반 반품만 — 교환으로 인한 복구는 제외)
     const returnRows = await db.allAsync(
       `SELECT ro.id, ro.type, ro.status, ro.received_at, ro.vendor_name, ro.reason,
               ri.quantity, ri.condition, ri.notes as item_notes
        FROM return_items ri
        INNER JOIN return_orders ro ON ri.return_order_id=ro.id
        WHERE ri.manufacturer=? AND ri.model_name=? AND COALESCE(ri.spec,'')=?
-         AND ro.is_deleted=0
+         AND ro.is_deleted=0 AND ro.type='return'
        ORDER BY ro.received_at DESC`,
       [manufacturer, model_name, specVal]
     );
@@ -177,12 +197,13 @@ router.get('/:id/history', auth('viewer'), async (req, res) => {
     );
 
     res.json({
-      inventory: inv,
-      inbound:   inboundRows,
-      outbound:  outboundRows,
-      returns:   returnRows,
-      adjustments: adjustRows,
-      avg_history: avgRows,
+      inventory:         inv,
+      inbound:           inboundRows,
+      outbound:          outboundRows,
+      exchange_outbound: exchangeOutboundRows,
+      returns:           returnRows,
+      adjustments:       adjustRows,
+      avg_history:       avgRows,
     });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });

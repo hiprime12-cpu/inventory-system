@@ -701,17 +701,17 @@ function ibParseConditionType(raw) {
 }
 
 function ibParseExcel(rows) {
-  // A:구분 B:브랜드 C:모델명 D:스펙 E:수량 F:매입가 G:처리구분 H:비고
+  // A:구분 B:브랜드 C:모델명 D:수량 E:매입가 F:처리구분 G:스펙 H:비고
   const errorLines = [];
   _excelRows = rows.map((r, idx) => {
     const rowNum       = idx + 2;
     const category     = String(r[0] ?? '').trim();
     const manufacturer = String(r[1] ?? '').trim();
     const model_name   = String(r[2] ?? '').trim();
-    const specRaw      = String(r[3] ?? '').trim();
-    const quantityRaw  = String(r[4] ?? '').trim();
-    const priceRaw     = String(r[5] ?? '').trim();
-    const condRaw      = String(r[6] ?? '').trim();
+    const quantityRaw  = String(r[3] ?? '').trim();
+    const priceRaw     = String(r[4] ?? '').trim();
+    const condRaw      = String(r[5] ?? '').trim();
+    const specRaw      = String(r[6] ?? '').trim();
     const notes        = String(r[7] ?? '').trim();
 
     const spec         = specRaw.toLowerCase().trim();
@@ -720,10 +720,6 @@ function ibParseExcel(rows) {
     const _errCols = new Set();
     const rowMsgs  = [];
 
-    if (!manufacturer) {
-      _errCols.add('B');
-      rowMsgs.push(`${rowNum}행 B열(브랜드)이 비어있습니다`);
-    }
     if (!model_name) {
       _errCols.add('C');
       rowMsgs.push(`${rowNum}행 C열(모델명)이 비어있습니다`);
@@ -731,28 +727,28 @@ function ibParseExcel(rows) {
 
     const quantity = Number(quantityRaw);
     if (!quantityRaw || isNaN(quantity) || quantity <= 0) {
-      _errCols.add('E');
+      _errCols.add('D');
       rowMsgs.push(
         !quantityRaw
-          ? `${rowNum}행 E열(수량)이 비어있습니다`
-          : `${rowNum}행 E열(수량)에 숫자가 아닌 값이 있습니다`
+          ? `${rowNum}행 D열(수량)이 비어있습니다`
+          : `${rowNum}행 D열(수량)에 숫자가 아닌 값이 있습니다`
       );
     }
 
     const purchase_price = Number(priceRaw);
     if (priceRaw === '' || isNaN(purchase_price) || purchase_price < 0) {
-      _errCols.add('F');
+      _errCols.add('E');
       rowMsgs.push(
         priceRaw === ''
-          ? `${rowNum}행 F열(매입가)이 비어있습니다`
-          : `${rowNum}행 F열(매입가)에 올바르지 않은 값이 있습니다`
+          ? `${rowNum}행 E열(매입가)이 비어있습니다`
+          : `${rowNum}행 E열(매입가)에 올바르지 않은 값이 있습니다`
       );
     }
 
     const { val: condition_type, err: condErr } = ibParseConditionType(condRaw);
     if (condErr) {
-      _errCols.add('G');
-      rowMsgs.push(`${rowNum}행 G열: ${condErr}`);
+      _errCols.add('F');
+      rowMsgs.push(`${rowNum}행 F열: ${condErr}`);
     }
 
     if (rowMsgs.length) errorLines.push(...rowMsgs);
@@ -791,13 +787,13 @@ function ibParseExcel(rows) {
       <tr ${rowStyle}>
         <td style="text-align:center${hasErr ? ';color:var(--danger);font-weight:700' : ''}">${r._row}</td>
         <td>${escHtml(r.category)}</td>
-        <td${cellErr('B')}>${escHtml(r.manufacturer) || '<span style="color:var(--danger)">비어있음</span>'}</td>
+        <td>${escHtml(r.manufacturer) || '-'}</td>
         <td${cellErr('C')}>${escHtml(r.model_name)   || '<span style="color:var(--danger)">비어있음</span>'}</td>
-        <td>${escHtml(r.spec) || '-'}</td>
-        <td style="text-align:right"${cellErr('E')}>${r._errCols.has('E') ? '<span style="color:var(--danger)">오류</span>' : r.quantity}</td>
-        <td style="text-align:right"${cellErr('F')}>${r._errCols.has('F') ? '<span style="color:var(--danger)">오류</span>' : r.purchase_price.toLocaleString()}</td>
+        <td style="text-align:right"${cellErr('D')}>${r._errCols.has('D') ? '<span style="color:var(--danger)">오류</span>' : r.quantity}</td>
+        <td style="text-align:right"${cellErr('E')}>${r._errCols.has('E') ? '<span style="color:var(--danger)">오류</span>' : r.purchase_price.toLocaleString()}</td>
         <td style="text-align:right">${hasErr ? '-' : total.toLocaleString()}</td>
-        <td${cellErr('G')}>${r._errCols.has('G') ? '<span style="color:var(--danger)">오류</span>' : condLabel[r.condition_type]}</td>
+        <td${cellErr('F')}>${r._errCols.has('F') ? '<span style="color:var(--danger)">오류</span>' : condLabel[r.condition_type]}</td>
+        <td>${escHtml(r.spec) || '-'}</td>
         <td>${escHtml(r.notes)}</td>
       </tr>`;
   }).join('');
@@ -815,10 +811,10 @@ function ibParseExcel(rows) {
 }
 
 function ibDownloadTemplate() {
-  // A:구분 B:브랜드 C:모델명 D:스펙 E:수량 F:매입가 G:처리구분 H:비고
+  // A:구분 B:브랜드 C:모델명 D:수량 E:매입가 F:처리구분 G:스펙 H:비고
   // 1행: 헤더(회색) 2행: 예시(노란) 3행+: 빈 행
-  const header  = ['구분', '브랜드', '모델명', '스펙', '수량', '매입가', '처리구분', '비고'];
-  const example = ['노트북', 'LG', '그램', 'i5 16G', 1, 800000, '불량', ''];
+  const header  = ['구분', '브랜드', '모델명', '수량', '매입가', '처리구분', '스펙', '비고'];
+  const example = ['노트북', 'LG', '그램', 1, 800000, '불량', 'i5 16G', ''];
   const data    = [header, example];
   for (let i = 0; i < 14; i++) data.push(['', '', '', '', '', '', '', '']);
 
@@ -851,7 +847,6 @@ async function ibSave(items) {
   if (!items.length) { toast('품목이 없습니다.', 'error'); return; }
 
   for (const it of items) {
-    if (!it.manufacturer)           { toast('브랜드가 비어있는 행이 있습니다.', 'error'); return; }
     if (!it.model_name)             { toast('모델명이 비어있는 행이 있습니다.', 'error'); return; }
     if (!(Number(it.quantity) > 0)) { toast(`'${it.model_name}' 수량이 올바르지 않습니다.`, 'error'); return; }
     if (Number(it.purchase_price) < 0) { toast(`'${it.model_name}' 매입가가 올바르지 않습니다.`, 'error'); return; }

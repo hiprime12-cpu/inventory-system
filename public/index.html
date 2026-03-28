@@ -473,17 +473,17 @@
                   <tbody>
                     <tr class="ev-header">
                       <td class="ev-rn">1</td>
-                      <td>구분</td><td>브랜드</td><td>모델명</td><td>스펙</td><td>수량</td><td>매입가</td><td>처리구분</td><td>비고</td>
+                      <td>구분</td><td>브랜드</td><td>모델명</td><td>수량</td><td>매입가</td><td>처리구분</td><td>스펙</td><td>비고</td>
                       <td class="ev-badge ev-badge-lock">🔒 수정금지</td>
                     </tr>
                     <tr class="ev-data-first">
                       <td class="ev-rn ev-arrow">2 ➜</td>
-                      <td>RAM</td><td>삼성</td><td>DDR4 16G</td><td></td><td>5</td><td>15,000</td><td></td><td></td>
+                      <td>RAM</td><td>삼성</td><td>DDR4 16G</td><td>5</td><td>15,000</td><td></td><td></td><td></td>
                       <td class="ev-badge ev-badge-start">✏️ 여기부터 입력</td>
                     </tr>
                     <tr class="ev-data">
                       <td class="ev-rn">3</td>
-                      <td>노트북</td><td>LG</td><td>그램</td><td>i5 16G</td><td>1</td><td>800,000</td><td>불량</td><td></td>
+                      <td>노트북</td><td>LG</td><td>그램</td><td>1</td><td>800,000</td><td>불량</td><td>i5 16G</td><td></td>
                       <td></td>
                     </tr>
                   </tbody>
@@ -518,8 +518,8 @@
                     </colgroup>
                     <thead>
                       <tr>
-                        <th>#</th><th>구분</th><th>브랜드</th><th>모델명</th><th>스펙</th>
-                        <th>수량</th><th>매입가</th><th>합계</th><th>처리구분</th><th>비고</th>
+                        <th>#</th><th>구분</th><th>브랜드</th><th>모델명</th>
+                        <th>수량</th><th>매입가</th><th>합계</th><th>처리구분</th><th>스펙</th><th>비고</th>
                       </tr>
                     </thead>
                     <tbody id="ib-excel-tbody"></tbody>
@@ -670,6 +670,7 @@
                       <th style="min-width:120px">스펙</th>
                       <th style="width:70px">수량</th>
                       <th style="min-width:110px">판매가</th>
+                      <th style="min-width:100px">소계</th>
                       <th style="width:80px">세금</th>
                       <th style="width:110px">합계</th>
                       <th style="min-width:90px">비고</th>
@@ -679,7 +680,7 @@
                   <tbody id="ob-items-tbody"></tbody>
                   <tfoot>
                     <tr>
-                      <td colspan="7" style="text-align:right;font-weight:700;padding:.5rem 1rem">합계</td>
+                      <td colspan="8" style="text-align:right;font-weight:700;padding:.5rem 1rem">합계</td>
                       <td id="ob-foot-tax" style="text-align:right;padding:.5rem .5rem;font-weight:600">0원</td>
                       <td id="ob-foot-total" style="text-align:right;padding:.5rem .5rem;font-weight:700">0원</td>
                       <td colspan="2"></td>
@@ -931,7 +932,99 @@
 
         <!-- 매출 (placeholder) -->
         <div id="page-sales" class="page">
-          <div class="placeholder-msg">💰 매출/수익<br><small>3단계에서 구현됩니다.</small></div>
+
+          <!-- 툴바 -->
+          <div class="page-toolbar">
+            <span style="font-weight:700;font-size:.95rem">판매현황</span>
+            <div class="sl-date-wrap">
+              <input type="date" id="sl-from" class="form-control sl-date-inp" />
+              <span class="sl-date-sep">~</span>
+              <input type="date" id="sl-to"   class="form-control sl-date-inp" />
+              <button class="btn btn-ghost btn-xs" id="btn-sl-today">오늘</button>
+              <button class="btn btn-ghost btn-xs" id="btn-sl-week">이번주</button>
+              <button class="btn btn-ghost btn-xs" id="btn-sl-month">이번달</button>
+            </div>
+            <div style="flex:1"></div>
+            <button class="btn btn-ghost" id="btn-sl-excel">📥 엑셀</button>
+          </div>
+
+          <!-- 검색 바 -->
+          <div class="sl-search-bar">
+            <input id="sl-search-cat"    class="form-control sl-search-inp" placeholder="구분"   style="width:88px" />
+            <input id="sl-search-brand"  class="form-control sl-search-inp" placeholder="브랜드" style="width:100px" />
+            <input id="sl-search-model"  class="form-control sl-search-inp" placeholder="모델명" style="width:160px" />
+            <input id="sl-search-vendor" class="form-control sl-search-inp" placeholder="거래처" style="width:110px" />
+            <button class="btn btn-ghost btn-xs" id="btn-sl-search-clear">✕</button>
+          </div>
+
+          <!-- 유형 탭 -->
+          <div class="tab-bar sl-tab-bar">
+            <button class="tab-btn sl-tab-btn active" data-sltab="all">전체 <span class="tab-count" id="sl-cnt-all">0</span></button>
+            <button class="tab-btn sl-tab-btn" data-sltab="normal">일반판매 <span class="tab-count" id="sl-cnt-normal">0</span></button>
+            <button class="tab-btn sl-tab-btn" data-sltab="return_deducted">반품차감 <span class="tab-count" id="sl-cnt-return">0</span></button>
+            <button class="tab-btn sl-tab-btn" data-sltab="exchange">교환 <span class="tab-count" id="sl-cnt-exchange">0</span></button>
+          </div>
+
+          <!-- 테이블 -->
+          <div class="table-wrap sl-table-wrap">
+            <table class="sl-table">
+              <thead>
+                <tr>
+                  <th style="min-width:88px">출고날짜</th>
+                  <th style="min-width:60px">구분</th>
+                  <th style="min-width:80px">브랜드</th>
+                  <th style="min-width:120px">모델명</th>
+                  <th style="min-width:80px">스펙</th>
+                  <th class="sl-num" style="min-width:50px">수량</th>
+                  <th class="sl-num" style="min-width:90px">판매가</th>
+                  <th class="sl-num" style="min-width:100px">판매가합계</th>
+                  <th class="sl-num" style="min-width:100px">평균매입가</th>
+                  <th class="sl-num" style="min-width:90px">순수익/개</th>
+                  <th class="sl-num" style="min-width:100px">순수익합계</th>
+                  <th style="min-width:90px">거래처</th>
+                  <th style="min-width:80px">유형</th>
+                </tr>
+              </thead>
+              <tbody id="sl-tbody">
+                <tr><td colspan="13" class="empty">데이터를 불러오는 중...</td></tr>
+              </tbody>
+            </table>
+          </div>
+
+          <!-- 하단 요약 -->
+          <div class="sl-summary-bar">
+            <div class="sl-sum-item">
+              <span class="sl-sum-label">총 건수</span>
+              <span class="sl-sum-val" id="sl-sum-items">—</span>
+            </div>
+            <div class="sl-sum-item">
+              <span class="sl-sum-label">총 수량</span>
+              <span class="sl-sum-val" id="sl-sum-qty">—</span>
+            </div>
+            <div class="sl-sum-divider"></div>
+            <div class="sl-sum-item">
+              <span class="sl-sum-label">판매가합계</span>
+              <span class="sl-sum-val sl-sum-sales" id="sl-sum-sales">—</span>
+            </div>
+            <div class="sl-sum-item sl-sum-profit-item">
+              <span class="sl-sum-label">순수익합계</span>
+              <span class="sl-sum-val" id="sl-sum-profit">—</span>
+            </div>
+            <div class="sl-sum-divider"></div>
+            <div class="sl-sum-item">
+              <span class="sl-sum-label">일반판매</span>
+              <span class="sl-sum-val sl-sum-gray" id="sl-sum-normal-cnt">—</span>
+            </div>
+            <div class="sl-sum-item">
+              <span class="sl-sum-label">반품차감</span>
+              <span class="sl-sum-val sl-sum-gray" id="sl-sum-return-cnt">—</span>
+            </div>
+            <div class="sl-sum-item">
+              <span class="sl-sum-label">교환</span>
+              <span class="sl-sum-val sl-sum-gray" id="sl-sum-exch-cnt">—</span>
+            </div>
+          </div>
+
         </div>
 
         <!-- 사용자 관리 (관리자) -->
@@ -1558,5 +1651,6 @@
 <script src="/js/outbound.js"></script>
 <script src="/js/company.js"></script>
 <script src="/js/returns.js"></script>
+<script src="/js/sales.js"></script>
 </body>
 </html>

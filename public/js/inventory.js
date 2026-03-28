@@ -72,7 +72,7 @@ function invApplyFilter() {
     if (qBrand  && !(r.manufacturer|| '').toLowerCase().includes(qBrand))  return false;
     if (qModel  && !(r.model_name  || '').toLowerCase().includes(qModel))  return false;
     if (qVendor && !(r.last_vendor || r.last_vendor_name || '').toLowerCase().includes(qVendor)) return false;
-    if (_invActiveTab === 'normal')    return (r.current_stock   || 0) > 0;
+    if (_invActiveTab === 'normal')    return (r.current_stock || 0) > 0 && !(r.defective_stock > 0) && !(r.disposal_stock > 0);
     if (_invActiveTab === 'defective') return (r.defective_stock || 0) > 0;
     if (_invActiveTab === 'disposal')  return (r.disposal_stock  || 0) > 0;
     return true;
@@ -83,7 +83,7 @@ function invApplyFilter() {
   // 탭 카운트
   const all  = _invAll;
   document.getElementById('invtab-all').textContent      = all.length;
-  document.getElementById('invtab-normal').textContent   = all.filter(r => (r.current_stock   ||0)>0).length;
+  document.getElementById('invtab-normal').textContent   = all.filter(r => (r.current_stock||0)>0 && !(r.defective_stock>0) && !(r.disposal_stock>0)).length;
   document.getElementById('invtab-defective').textContent= all.filter(r => (r.defective_stock ||0)>0).length;
   document.getElementById('invtab-disposal').textContent = all.filter(r => (r.disposal_stock  ||0)>0).length;
 
@@ -211,27 +211,31 @@ function invDetailRenderTab(tab) {
       </tr>`).join('')}</tbody>
     </table>`;
   } else if (tab === 'outbound') {
-    if (!d.outbound.length) { el.innerHTML = '<p class="empty">출고 이력 없음</p>'; return; }
+    const regularOb  = (d.outbound          || []).map(r => ({ ...r, _isExchange: false }));
+    const exchangeOb = (d.exchange_outbound || []).map(r => ({ ...r, _isExchange: true  }));
+    const combined   = [...regularOb, ...exchangeOb]
+      .sort((a, b) => (b.order_date || '').localeCompare(a.order_date || ''));
+    if (!combined.length) { el.innerHTML = '<p class="empty">출고 이력 없음</p>'; return; }
     el.innerHTML = `<table class="data-table inv-hist-tbl">
-      <thead><tr><th>출고일</th><th>수량</th><th>판매가</th><th>평균매입가</th><th>거래처</th><th>비고</th></tr></thead>
-      <tbody>${d.outbound.map(r => `<tr>
+      <thead><tr><th>출고일</th><th>유형</th><th>수량</th><th>판매가</th><th>거래처</th></tr></thead>
+      <tbody>${combined.map(r => `<tr>
         <td>${r.order_date || ''}</td>
+        <td>${r._isExchange
+          ? '<span class="sl-type-badge sl-type-exchange">🔄 교환</span>'
+          : '<span class="sl-type-badge sl-type-normal">일반</span>'}</td>
         <td>${invNum(r.quantity)}</td>
         <td>${invFmt(r.sale_price)}</td>
-        <td>${invFmt(r.avg_purchase_price)}</td>
         <td>${escHtml(r.vendor_name||'')}</td>
-        <td>${escHtml(r.notes||'')}</td>
       </tr>`).join('')}</tbody>
     </table>`;
   } else if (tab === 'returns') {
-    if (!d.returns.length) { el.innerHTML = '<p class="empty">반품/교환 이력 없음</p>'; return; }
-    const RT_TYPE  = { return:'반품', exchange:'교환' };
-    const RT_STAT  = { pending:'접수대기', testing:'테스트중', normal:'정상확정', defective:'불량확정', exchange_pending:'교환출고대기', exchange_done:'교환완료' };
+    if (!d.returns.length) { el.innerHTML = '<p class="empty">반품 이력 없음</p>'; return; }
+    const RT_STAT = { pending:'접수대기', testing:'테스트중', normal:'정상확정', defective:'불량확정' };
     el.innerHTML = `<table class="data-table inv-hist-tbl">
       <thead><tr><th>접수일</th><th>유형</th><th>상태</th><th>수량</th><th>거래처</th><th>비고</th></tr></thead>
       <tbody>${d.returns.map(r => `<tr>
         <td>${r.received_at||''}</td>
-        <td>${RT_TYPE[r.type]||r.type}</td>
+        <td><span class="sl-type-badge sl-type-return">🔄 반품</span></td>
         <td>${RT_STAT[r.status]||r.status}</td>
         <td>${invNum(r.quantity)}</td>
         <td>${escHtml(r.vendor_name||'')}</td>
@@ -452,7 +456,7 @@ function invExportExcel() {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + (sessionStorage.getItem('token') || ''),
+        'Authorization': 'Bearer ' + (localStorage.getItem('token') || ''),
       },
       body: JSON.stringify(body),
     });

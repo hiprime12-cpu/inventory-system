@@ -359,10 +359,10 @@ router.patch('/:id/status', auth('editor'), async (req, res) => {
 
         await db.runAsync(
           `INSERT INTO outbound_orders
-             (id, order_date, sales_vendor_id, vendor_name, tax_type, total_price, notes, created_at, created_by)
-           VALUES (?, ?, ?, ?, 'none', 0, ?, ?, ?)`,
+             (id, order_date, sales_vendor_id, vendor_name, tax_type, total_price, notes, exchange_return_id, created_at, created_by)
+           VALUES (?, ?, ?, ?, 'none', 0, ?, ?, ?, ?)`,
           [exOrderId, order.received_at, order.sales_vendor_id || null, order.vendor_name || null,
-           `교환출고 (접수번호: ${order.id.slice(0,8)})`, n, req.user.id]
+           `교환출고 (접수번호: ${order.id.slice(0,8)})`, order.id, n, req.user.id]
         );
 
         for (const item of order.exchange_items) {

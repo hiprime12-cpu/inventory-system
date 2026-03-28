@@ -4,81 +4,98 @@ const router = require('express').Router();
 const { getDB } = require('../db/database');
 const auth = require('../middleware/auth');
 
-// GET /api/sales/summary  ── editor 이상
-router.get('/summary', auth('editor'), async (req, res) => {
+// ── GET /api/sales/items ────────────────────────────────────────
+// outbound_items + 주문 정보 + 반품 수량 조인
+// query: from, to (YYYY-MM-DD)
+router.get('/items', auth('editor'), async (req, res) => {
   try {
-    const { from, to } = req.query;
     const db = getDB();
-    let where = 'WHERE o.is_deleted = 0';
-    const params = [];
-    if (from) { where += ' AND o.outbound_date >= ?'; params.push(from); }
-    if (to)   { where += ' AND o.outbound_date <= ?'; params.push(to); }
-
-    const summary = await db.getAsync(
-      `SELECT
-         COUNT(*)               AS total_orders,
-         SUM(o.quantity)        AS total_quantity,
-         SUM(o.total_price)     AS total_sales,
-         SUM(o.total_profit)    AS total_profit,
-         AVG(o.profit_per_unit) AS avg_profit_per_unit
-       FROM outbound o ${where}`,
-      params
-    );
-    res.json(summary);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
-
-// GET /api/sales/by-model  ── editor 이상
-router.get('/by-model', auth('editor'), async (req, res) => {
-  try {
     const { from, to } = req.query;
-    const db = getDB();
-    let where = 'WHERE o.is_deleted = 0';
+
+    let dateWhere = '';
     const params = [];
-    if (from) { where += ' AND o.outbound_date >= ?'; params.push(from); }
-    if (to)   { where += ' AND o.outbound_date <= ?'; params.push(to); }
+    if (from) { dateWhere += ' AND oo.order_date >= ?'; params.push(from); }
+    if (to)   { dateWhere += ' AND oo.order_date <= ?'; params.push(to); }
 
     const rows = await db.allAsync(
       `SELECT
-         o.manufacturer, o.model_name,
-         SUM(o.quantity)           AS total_quantity,
-         SUM(o.total_price)        AS total_sales,
-         SUM(o.total_profit)       AS total_profit,
-         AVG(o.sale_price)         AS avg_sale_price,
-         AVG(o.avg_purchase_price) AS avg_purchase_price
-       FROM outbound o ${where}
-       GROUP BY o.manufacturer, o.model_name
-       ORDER BY total_profit DESC`,
+         oi.id, oi.order_id,
+         oi.category, oi.manufacturer, oi.model_name, oi.spec,
+         oi.quantity,
+         oi.sale_price, oi.tax_amount, oi.total_price,
+         oi.avg_purchase_price, oi.profit_per_unit, oi.total_profit,
+         oi.is_priority_stock,
+         oi.notes AS item_notes,
+         oo.order_date, oo.vendor_name, oo.tax_type,
+         oo.exchange_return_id,
+         COALESCE(ri_agg.returned_qty, 0)  AS returned_qty,
+         COALESCE(ri_agg.has_exchange, 0)  AS has_exchange,
+         COALESCE(ri_agg.has_return,   0)  AS has_return
+       FROM outbound_items oi
+       JOIN outbound_orders oo ON oi.order_id = oo.id
+       LEFT JOIN (
+         SELECT
+           COALESCE(ri.outbound_item_id, (
+             SELECT oi2.id FROM outbound_items oi2
+             JOIN outbound_orders oo2 ON oi2.order_id = oo2.id
+             WHERE oi2.manufacturer = ri.manufacturer
+               AND oi2.model_name   = ri.model_name
+               AND COALESCE(oi2.spec,'') = COALESCE(ri.spec,'')
+               AND oo2.vendor_name  = ro.vendor_name
+               AND oi2.is_deleted   = 0
+               AND oo2.is_deleted   = 0
+             ORDER BY oo2.order_date DESC
+             LIMIT 1
+           )) AS target_item_id,
+           SUM(ri.quantity) AS returned_qty,
+           MAX(CASE WHEN ro.type = 'exchange' THEN 1 ELSE 0 END) AS has_exchange,
+           MAX(CASE WHEN ro.type = 'return'   THEN 1 ELSE 0 END) AS has_return
+         FROM return_items ri
+         JOIN return_orders ro ON ri.return_order_id = ro.id
+         WHERE ro.is_deleted = 0
+         GROUP BY target_item_id
+       ) ri_agg ON ri_agg.target_item_id = oi.id
+       WHERE oi.is_deleted = 0 AND oo.is_deleted = 0
+       ${dateWhere}
+       ORDER BY oo.order_date DESC, oo.created_at DESC, oi.created_at`,
       params
     );
-    res.json(rows);
-  } catch (err) { res.status(500).json({ error: err.message }); }
-});
 
-// GET /api/sales/by-vendor  ── editor 이상
-router.get('/by-vendor', auth('editor'), async (req, res) => {
-  try {
-    const { from, to } = req.query;
-    const db = getDB();
-    let where = 'WHERE o.is_deleted = 0';
-    const params = [];
-    if (from) { where += ' AND o.outbound_date >= ?'; params.push(from); }
-    if (to)   { where += ' AND o.outbound_date <= ?'; params.push(to); }
+    // sale_type 및 순수익 보정 계산
+    const result = rows.map(r => {
+      const returnedQty = Math.min(r.returned_qty || 0, r.quantity);
+      const netQty      = r.quantity - returnedQty;
 
-    const rows = await db.allAsync(
-      `SELECT
-         v.company_name,
-         SUM(o.quantity)     AS total_quantity,
-         SUM(o.total_price)  AS total_sales,
-         SUM(o.total_profit) AS total_profit
-       FROM outbound o
-       LEFT JOIN vendors v ON o.vendor_id = v.id
-       ${where}
-       GROUP BY o.vendor_id, v.company_name
-       ORDER BY total_sales DESC`,
-      params
-    );
-    res.json(rows);
+      // B 상품 (교환 출고) — 🔄 교환으로 표시
+      if (r.exchange_return_id) {
+        return {
+          ...r,
+          returned_qty:     0,
+          net_quantity:     r.quantity,
+          net_total_price:  r.quantity * (r.sale_price || 0),
+          net_total_profit: (r.profit_per_unit || 0) * r.quantity,
+          sale_type:        'exchange',
+        };
+      }
+
+      // A 상품 (교환으로 반품된 원판매) — 판매현황에서 제외
+      if (r.has_exchange) return null;
+
+      let saleType;
+      if (r.has_return && returnedQty > 0) saleType = 'return_deducted';
+      else saleType = 'normal';
+
+      return {
+        ...r,
+        returned_qty:     returnedQty,
+        net_quantity:     netQty,
+        net_total_price:  netQty * (r.sale_price || 0),
+        net_total_profit: (r.profit_per_unit || 0) * netQty,
+        sale_type:        saleType,
+      };
+    }).filter(r => r !== null);
+
+    res.json(result);
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

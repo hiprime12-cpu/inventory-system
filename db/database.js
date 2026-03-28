@@ -453,6 +453,80 @@ async function migrateReturns2(adapter) {
   }
 }
 
+// ── ExchangeOutbound 마이그레이션 (outbound_orders.exchange_return_id 추가) ─
+async function migrateExchangeOutbound(adapter) {
+  try {
+    const col = { table: 'outbound_orders', column: 'exchange_return_id', def: 'TEXT' };
+    if (adapter._isPg) {
+      await adapter.runAsync(
+        `ALTER TABLE ${col.table} ADD COLUMN IF NOT EXISTS ${col.column} ${col.def}`
+      );
+      // 기존 교환출고 데이터: notes 패턴으로 exchange_return_id 역추적
+      await adapter.runAsync(`
+        UPDATE outbound_orders
+        SET exchange_return_id = (
+          SELECT ro.id FROM return_orders ro
+          WHERE ro.type = 'exchange' AND ro.is_deleted = 0
+            AND POSITION(SUBSTRING(ro.id, 1, 8) IN outbound_orders.notes) > 0
+          LIMIT 1
+        )
+        WHERE notes LIKE '교환출고 (접수번호: %)'
+          AND (exchange_return_id IS NULL OR exchange_return_id = '')
+      `);
+    } else {
+      const existing = adapter.sqlite
+        .prepare(`PRAGMA table_info(${col.table})`).all()
+        .map(r => r.name);
+      if (!existing.includes(col.column)) {
+        adapter.sqlite.exec(`ALTER TABLE ${col.table} ADD COLUMN ${col.column} ${col.def}`);
+      }
+      // 기존 교환출고 데이터: notes 패턴으로 exchange_return_id 역추적
+      adapter.sqlite.exec(`
+        UPDATE outbound_orders
+        SET exchange_return_id = (
+          SELECT ro.id FROM return_orders ro
+          WHERE ro.type = 'exchange' AND ro.is_deleted = 0
+            AND INSTR(outbound_orders.notes, SUBSTR(ro.id, 1, 8)) > 0
+          LIMIT 1
+        )
+        WHERE notes LIKE '교환출고 (접수번호: %)'
+          AND (exchange_return_id IS NULL OR exchange_return_id = '')
+      `);
+    }
+    console.log('[Migration] exchange_return_id 컬럼 + 기존 데이터 확인 완료');
+  } catch (err) {
+    console.log('[Migration] migrateExchangeOutbound:', err.message);
+  }
+}
+
+// ── Sales8 마이그레이션 (outbound_items.is_priority_stock 추가) ─
+async function migrateSales8(adapter) {
+  try {
+    const newCols = [
+      { table: 'outbound_items', column: 'is_priority_stock', def: 'INTEGER NOT NULL DEFAULT 0' },
+    ];
+    for (const c of newCols) {
+      try {
+        if (adapter._isPg) {
+          await adapter.runAsync(
+            `ALTER TABLE ${c.table} ADD COLUMN IF NOT EXISTS ${c.column} ${c.def}`
+          );
+        } else {
+          const existing = adapter.sqlite
+            .prepare(`PRAGMA table_info(${c.table})`).all()
+            .map(r => r.name);
+          if (!existing.includes(c.column)) {
+            adapter.sqlite.exec(`ALTER TABLE ${c.table} ADD COLUMN ${c.column} ${c.def}`);
+          }
+        }
+      } catch(e) { console.log(`[Migration] sales8 ${c.table}.${c.column}: ${e.message}`); }
+    }
+    console.log('[Migration] sales8 컬럼 확인 완료');
+  } catch (err) {
+    console.log('[Migration] sales8:', err.message);
+  }
+}
+
 // ── Outbound 주문/항목 테이블 마이그레이션 ──────────────────────
 async function migrateOutbound2(adapter) {
   try {
@@ -730,6 +804,8 @@ async function initDB() {
   await migrateCompanyInfo(db);
   await migrateInventory2(db);
   await migrateReturns2(db);
+  await migrateSales8(db);
+  await migrateExchangeOutbound(db);
   await seedAdmin(db);
   await seedTestAccounts(db);
   await seedVendors(db);
