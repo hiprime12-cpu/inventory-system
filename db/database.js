@@ -643,6 +643,29 @@ function now() {
   return new Date().toISOString().replace('T', ' ').slice(0, 19);
 }
 
+// ── users 테이블 username 컬럼 마이그레이션 ────────────────────
+async function migrateUsersUsername(adapter) {
+  try {
+    if (adapter._isPg) {
+      await adapter.runAsync(`ALTER TABLE users ADD COLUMN IF NOT EXISTS username TEXT UNIQUE`);
+      // 기존 관리자: username = name
+      await adapter.runAsync(`UPDATE users SET username = name WHERE role = 'admin' AND (username IS NULL OR username = '')`);
+      // 기존 일반 사용자: username = phone (하위 호환)
+      await adapter.runAsync(`UPDATE users SET username = phone WHERE role != 'admin' AND (username IS NULL OR username = '') AND phone IS NOT NULL`);
+    } else {
+      const existing = adapter.sqlite.prepare(`PRAGMA table_info(users)`).all().map(r => r.name);
+      if (!existing.includes('username')) {
+        adapter.sqlite.exec(`ALTER TABLE users ADD COLUMN username TEXT`);
+      }
+      adapter.sqlite.exec(`UPDATE users SET username = name WHERE role = 'admin' AND (username IS NULL OR username = '')`);
+      adapter.sqlite.exec(`UPDATE users SET username = phone WHERE role != 'admin' AND (username IS NULL OR username = '') AND phone IS NOT NULL`);
+    }
+    console.log('[Migration] users.username 컬럼 확인 완료');
+  } catch (err) {
+    console.log('[Migration] migrateUsersUsername:', err.message);
+  }
+}
+
 // ── 관리자 계정 시드 ───────────────────────────────────────────
 async function seedAdmin(adapter) {
   const bcrypt    = require('bcryptjs');
@@ -652,16 +675,16 @@ async function seedAdmin(adapter) {
   const adminPw   = process.env.ADMIN_PW || 'admin1234';
 
   const existing = await adapter.getAsync(
-    'SELECT id FROM users WHERE name = ? AND is_deleted = 0',
+    'SELECT id FROM users WHERE username = ? AND is_deleted = 0',
     [adminName]
   );
   if (existing) return;
 
   const hash = await bcrypt.hash(adminPw, 12);
   await adapter.runAsync(
-    `INSERT INTO users (id, name, phone, password_hash, role, created_at)
-     VALUES (?, ?, NULL, ?, 'admin', ?)`,
-    [uuidv4(), adminName, hash, now()]
+    `INSERT INTO users (id, name, username, phone, password_hash, role, created_at)
+     VALUES (?, ?, ?, NULL, ?, 'admin', ?)`,
+    [uuidv4(), adminName, adminName, hash, now()]
   );
   console.log(`[DB] 관리자 계정 생성: ${adminName}`);
 }
@@ -672,22 +695,37 @@ async function seedTestAccounts(adapter) {
   const { v4: uuidv4 } = require('uuid');
 
   const accounts = [
-    { name: '뷰어',   phone: '01011111111', password: 'test1234', role: 'viewer' },
-    { name: '에디터', phone: '01022222222', password: 'test1234', role: 'editor' },
+    { name: '뷰어',   username: 'viewer1',  phone: '01011111111', password: 'test1234', role: 'viewer' },
+    { name: '에디터', username: 'editor1',  phone: '01022222222', password: 'test1234', role: 'editor' },
   ];
 
   for (const acc of accounts) {
-    const exists = await adapter.getAsync(
+    // username으로 먼저 확인, 없으면 phone으로 확인 (기존 계정 username 업데이트)
+    const byUsername = await adapter.getAsync(
+      'SELECT id FROM users WHERE username = ? AND is_deleted = 0',
+      [acc.username]
+    );
+    if (byUsername) continue;
+
+    const byPhone = await adapter.getAsync(
       'SELECT id FROM users WHERE phone = ? AND is_deleted = 0',
       [acc.phone]
     );
-    if (exists) continue;
+    if (byPhone) {
+      // 기존 계정에 username 업데이트
+      await adapter.runAsync(
+        'UPDATE users SET username = ? WHERE id = ?',
+        [acc.username, byPhone.id]
+      );
+      console.log(`[DB] 테스트 계정 username 업데이트: ${acc.name} → ${acc.username}`);
+      continue;
+    }
 
     const hash = await bcrypt.hash(acc.password, 12);
     await adapter.runAsync(
-      `INSERT INTO users (id, name, phone, password_hash, role, created_at)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [uuidv4(), acc.name, acc.phone, hash, acc.role, now()]
+      `INSERT INTO users (id, name, username, phone, password_hash, role, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [uuidv4(), acc.name, acc.username, acc.phone, hash, acc.role, now()]
     );
     console.log(`[DB] 테스트 계정 생성: ${acc.name} (${acc.role})`);
   }
@@ -806,6 +844,7 @@ async function initDB() {
   await migrateReturns2(db);
   await migrateSales8(db);
   await migrateExchangeOutbound(db);
+  await migrateUsersUsername(db);
   await seedAdmin(db);
   await seedTestAccounts(db);
   await seedVendors(db);

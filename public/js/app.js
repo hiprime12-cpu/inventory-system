@@ -251,12 +251,23 @@ document.getElementById('form-register').addEventListener('submit', async (e) =>
   const msgEl = document.getElementById('reg-msg');
   msgEl.className = 'hidden';
 
-  const name  = document.getElementById('reg-name').value.trim();
-  const phone = document.getElementById('reg-phone').value.trim();
-  const pw    = document.getElementById('reg-pw').value;
-  const pw2   = document.getElementById('reg-pw2').value;
+  const name     = document.getElementById('reg-name').value.trim();
+  const username = document.getElementById('reg-username').value.trim();
+  const pw       = document.getElementById('reg-pw').value;
+  const pw2      = document.getElementById('reg-pw2').value;
 
   // 클라이언트 유효성 검사
+  if (username.length < 3) {
+    document.getElementById('username-err').textContent = '아이디는 3자 이상이어야 합니다.';
+    document.getElementById('username-err').classList.remove('hidden');
+    return;
+  }
+  if (!/^[a-zA-Z0-9_]+$/.test(username)) {
+    document.getElementById('username-err').textContent = '영문, 숫자, 밑줄(_)만 사용 가능합니다.';
+    document.getElementById('username-err').classList.remove('hidden');
+    return;
+  }
+  document.getElementById('username-err').classList.add('hidden');
   if (pw !== pw2) {
     document.getElementById('pw2-err').textContent = '비밀번호가 일치하지 않습니다.';
     document.getElementById('pw2-err').classList.remove('hidden');
@@ -268,7 +279,7 @@ document.getElementById('form-register').addEventListener('submit', async (e) =>
   }
 
   try {
-    const data = await API.post('/auth/register', { name, phone, password: pw });
+    const data = await API.post('/auth/register', { name, username, password: pw });
     msgEl.textContent = data.message;
     msgEl.className   = 'msg-success';
     document.getElementById('form-register').reset();
@@ -394,7 +405,7 @@ function renderPendingTab(list) {
   tbody.innerHTML = list.map(u => `
     <tr>
       <td>${escHtml(u.name)}</td>
-      <td>${fmtPhone(u.phone)}</td>
+      <td>${escHtml(u.username || u.phone || '-')}</td>
       <td>${fmtDate(u.created_at)}</td>
       <td>
         <button class="btn btn-sm btn-success" onclick="approveUser('${u.id}','viewer')">보기만</button>
@@ -430,7 +441,7 @@ function renderAllTab(list) {
     return `
       <tr>
         <td>${escHtml(u.name)}</td>
-        <td>${fmtPhone(u.phone)}</td>
+        <td>${escHtml(u.username || u.phone || '-')}</td>
         <td>${roleChip(u.role)}</td>
         <td>${fmtDate(u.created_at)}</td>
         ${actionCell}

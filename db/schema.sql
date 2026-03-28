@@ -7,7 +7,8 @@
 CREATE TABLE IF NOT EXISTS users (
   id            TEXT PRIMARY KEY,
   name          TEXT NOT NULL,
-  phone         TEXT UNIQUE,                          -- 로그인 식별자 (관리자는 NULL)
+  username      TEXT UNIQUE,                          -- 로그인 아이디
+  phone         TEXT UNIQUE,                          -- 레거시 (하위 호환)
   password_hash TEXT NOT NULL,
   role          TEXT NOT NULL DEFAULT 'pending'
                   CHECK (role IN ('pending', 'viewer', 'editor', 'admin')),

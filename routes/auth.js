@@ -9,31 +9,28 @@ const auth   = require('../middleware/auth');
 const { writeAuditLog } = require('../middleware/audit');
 
 // ── POST /api/auth/login ─────────────────────────────────────
-// 관리자: ADMIN_ID(hiprime)으로 로그인
-// 일반 사용자: 전화번호로 로그인
+// 아이디 + 비밀번호로 로그인
 router.post('/login', async (req, res) => {
   try {
     const { identifier, password } = req.body;
     if (!identifier || !password)
-      return res.status(400).json({ error: '아이디/전화번호와 비밀번호를 입력하세요.' });
+      return res.status(400).json({ error: '아이디와 비밀번호를 입력하세요.' });
 
-    const db      = getDB();
-    const adminId = process.env.ADMIN_ID || 'hiprime';
-    let user;
+    const db = getDB();
 
-    if (identifier === adminId) {
-      // 관리자 로그인 (이름으로 조회)
-      user = await db.getAsync(
-        'SELECT * FROM users WHERE name = ? AND is_deleted = 0',
-        [adminId]
-      );
-    } else {
-      // 일반 사용자 (전화번호로 조회, 숫자만 비교)
+    // username으로 조회 (fallback: phone 숫자 비교 — 하위 호환)
+    let user = await db.getAsync(
+      'SELECT * FROM users WHERE username = ? AND is_deleted = 0',
+      [identifier.trim()]
+    );
+    if (!user) {
       const digits = identifier.replace(/\D/g, '');
-      user = await db.getAsync(
-        'SELECT * FROM users WHERE replace(phone, \'-\', \'\') = ? AND is_deleted = 0',
-        [digits]
-      );
+      if (digits.length >= 10) {
+        user = await db.getAsync(
+          "SELECT * FROM users WHERE replace(phone, '-', '') = ? AND is_deleted = 0",
+          [digits]
+        );
+      }
     }
 
     if (!user)
@@ -65,36 +62,37 @@ router.post('/login', async (req, res) => {
 // ── POST /api/auth/register ──────────────────────────────────
 router.post('/register', async (req, res) => {
   try {
-    const { name, phone, password } = req.body;
+    const { name, username, password } = req.body;
 
-    if (!name || !phone || !password)
-      return res.status(400).json({ error: '이름, 전화번호, 비밀번호를 모두 입력하세요.' });
+    if (!name || !username || !password)
+      return res.status(400).json({ error: '이름, 아이디, 비밀번호를 모두 입력하세요.' });
 
-    // 전화번호 숫자만 추출 후 유효성 검사
-    const digits = phone.replace(/\D/g, '');
-    if (digits.length < 10 || digits.length > 11)
-      return res.status(400).json({ error: '올바른 전화번호를 입력하세요.' });
+    const usernameClean = username.trim();
+    if (usernameClean.length < 3)
+      return res.status(400).json({ error: '아이디는 3자 이상이어야 합니다.' });
+    if (!/^[a-zA-Z0-9_]+$/.test(usernameClean))
+      return res.status(400).json({ error: '아이디는 영문, 숫자, 밑줄(_)만 사용 가능합니다.' });
 
     const db = getDB();
 
-    // 전화번호 중복 체크
+    // 아이디 중복 체크
     const exists = await db.getAsync(
-      'SELECT id FROM users WHERE replace(phone, \'-\', \'\') = ? AND is_deleted = 0',
-      [digits]
+      'SELECT id FROM users WHERE username = ? AND is_deleted = 0',
+      [usernameClean]
     );
     if (exists)
-      return res.status(409).json({ error: '이미 가입된 전화번호입니다.' });
+      return res.status(409).json({ error: '이미 사용 중인 아이디입니다.' });
 
     const hash = await bcrypt.hash(password, 12);
     const id   = uuidv4();
 
     await db.runAsync(
-      `INSERT INTO users (id, name, phone, password_hash, role, created_at)
+      `INSERT INTO users (id, name, username, password_hash, role, created_at)
        VALUES (?, ?, ?, ?, 'pending', ?)`,
-      [id, name.trim(), digits, hash, nowStr()]
+      [id, name.trim(), usernameClean, hash, nowStr()]
     );
 
-    await writeAuditLog('users', id, 'create', null, { name, phone: digits, role: 'pending' }, null);
+    await writeAuditLog('users', id, 'create', null, { name, username: usernameClean, role: 'pending' }, null);
 
     res.status(201).json({ message: '가입 신청이 완료되었습니다.\n관리자 승인 후 이용 가능합니다.' });
   } catch (err) {
@@ -114,7 +112,7 @@ router.get('/users', auth('admin'), async (req, res) => {
   try {
     const db    = getDB();
     const users = await db.allAsync(
-      `SELECT id, name, phone, role, created_at
+      `SELECT id, name, username, phone, role, created_at
        FROM users
        WHERE is_deleted = 0
        ORDER BY
