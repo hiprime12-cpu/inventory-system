@@ -550,7 +550,12 @@ document.addEventListener('DOMContentLoaded', () => {
       document.querySelectorAll('[data-invtab]').forEach(b =>
         b.classList.toggle('active', b.dataset.invtab === _invActiveTab)
       );
-      invApplyFilter();
+      // 스마트스토어 탭은 항상 최신 데이터로 재조회
+      if (_invActiveTab === 'smartstore') {
+        loadInventory();
+      } else {
+        invApplyFilter();
+      }
     });
   });
 

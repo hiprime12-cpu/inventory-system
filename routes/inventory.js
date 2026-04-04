@@ -42,7 +42,6 @@ const INBOUND_SUBS = `
     SELECT MAX(i.is_smartstore) FROM inbound i
     WHERE i.manufacturer=inv.manufacturer AND i.model_name=inv.model_name
       AND COALESCE(i.spec,'')=COALESCE(inv.spec,'')
-      AND i.condition_type=inv.condition_type
       AND i.is_deleted=0
   ),0) AS has_smartstore
 `;
