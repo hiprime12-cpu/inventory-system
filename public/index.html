@@ -297,6 +297,7 @@
             <input id="inv-search-vendor"type="text" class="form-control inv-search-inp" placeholder="거래처" style="width:110px" />
             <button class="btn btn-ghost btn-xs" id="btn-inv-search-clear" title="검색 초기화">✕</button>
             <div style="flex:1"></div>
+            <button class="btn btn-ghost" id="btn-inv-refresh" title="최신 데이터 불러오기">🔄 새로고침</button>
             <button class="btn btn-secondary" id="btn-inv-adjust">재고조정</button>
             <button class="btn btn-ghost" id="btn-inv-excel">엑셀 다운로드</button>
           </div>
@@ -308,6 +309,7 @@
             <button class="tab-btn" data-invtab="defective">불량재고 <span class="tab-count" id="invtab-defective">0</span></button>
             <button class="tab-btn" data-invtab="disposal">폐기재고 <span class="tab-count" id="invtab-disposal">0</span></button>
             <button class="tab-btn" data-invtab="smartstore">🛒 스마트스토어 <span class="tab-count" id="invtab-smartstore">0</span></button>
+            <button class="tab-btn" data-invtab="groups">📦 그룹 <span class="tab-count" id="invtab-groups">0</span></button>
           </div>
 
           <!-- 구분 필터 -->
@@ -1910,7 +1912,7 @@
   <table class="tbl" style="margin:0;border:none">
     <thead>
       <tr>
-        <th>구분</th><th>브랜드</th><th>모델명</th><th>스펙</th><th>재고</th>
+        <th>구분</th><th>브랜드</th><th>모델명</th><th>스펙</th><th>상태</th><th>재고</th>
       </tr>
     </thead>
     <tbody id="ob-model-dropdown-tbody"></tbody>
@@ -1922,7 +1924,7 @@
   <table class="tbl" style="margin:0;border:none">
     <thead>
       <tr>
-        <th>구분</th><th>브랜드</th><th>모델명</th><th>스펙</th><th>재고</th>
+        <th>구분</th><th>브랜드</th><th>모델명</th><th>스펙</th><th>상태</th><th>재고</th>
       </tr>
     </thead>
     <tbody id="rt-model-dropdown-tbody"></tbody>

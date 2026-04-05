@@ -14,6 +14,9 @@ router.get('/', auth('viewer'), async (req, res) => {
         pg.id, pg.group_name, pg.category, pg.brand,
         pg.created_at, pg.updated_at,
         COUNT(DISTINCT pgi.id) AS item_count,
+        COALESCE(SUM(CASE WHEN inv.condition_type='normal'    THEN inv.current_stock ELSE 0 END), 0) AS normal_stock,
+        COALESCE(SUM(CASE WHEN inv.condition_type='defective' THEN inv.current_stock ELSE 0 END), 0) AS defective_stock,
+        COALESCE(SUM(CASE WHEN inv.condition_type='disposal'  THEN inv.current_stock ELSE 0 END), 0) AS disposal_stock,
         COALESCE(SUM(inv.current_stock), 0) AS total_stock
       FROM product_groups pg
       LEFT JOIN product_group_items pgi ON pgi.group_id = pg.id

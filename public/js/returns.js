@@ -736,27 +736,31 @@ window.rtShowModelDropdown = function(inputEl, rowIdx) {
 
   let rows = '';
   if (!limited.length) {
-    rows = `<tr><td colspan="5" class="empty" style="padding:.5rem">검색 결과 없음</td></tr>`;
+    rows = `<tr><td colspan="6" class="empty" style="padding:.5rem">검색 결과 없음</td></tr>`;
   } else {
     rows = limited.map((inv, i) => {
       const noStock = inv.current_stock <= 0;
       const warn    = inv.pending_test > 0 ? ' ⚠' : '';
+      const ct      = inv.condition_type || 'normal';
+      const ctLabel = ct === 'defective' ? '불량' : ct === 'disposal' ? '폐기' : '정상';
+      const ctCls   = ct === 'defective' ? 'ob-cond-defective' : ct === 'disposal' ? 'ob-cond-disposal' : 'ob-cond-normal';
       return `<tr class="ob-model-row${noStock ? ' ob-row-nostock' : ''}"
         ${noStock ? '' : `onmousedown="rtSelectModelByIdx(${i})"`}>
         <td>${escHtml(inv.category||'-')}</td>
         <td>${escHtml(inv.manufacturer||'-')}</td>
         <td>${escHtml(inv.model_name)}</td>
         <td>${escHtml(inv.spec||'-')}</td>
+        <td><span class="ob-cond-badge ${ctCls}">${ctLabel}</span></td>
         <td class="${noStock ? 'ob-stock-zero' : ''}">${inv.current_stock}개${warn}</td>
       </tr>`;
     }).join('');
   }
 
   const hintRow = hint
-    ? `<tr><td colspan="5" style="padding:.35rem .6rem;font-size:.8rem;color:var(--gray-500);background:#fafafa">${hint}</td></tr>`
+    ? `<tr><td colspan="6" style="padding:.35rem .6rem;font-size:.8rem;color:var(--gray-500);background:#fafafa">${hint}</td></tr>`
     : '';
   const moreRow = matches.length > 20
-    ? `<tr><td colspan="5" style="padding:.35rem .6rem;font-size:.8rem;color:var(--gray-500);background:#fafafa">... 외 ${matches.length-20}개 더 있습니다.</td></tr>`
+    ? `<tr><td colspan="6" style="padding:.35rem .6rem;font-size:.8rem;color:var(--gray-500);background:#fafafa">... 외 ${matches.length-20}개 더 있습니다.</td></tr>`
     : '';
 
   tbody.innerHTML = hintRow + rows + moreRow;
@@ -1062,6 +1066,7 @@ async function rtSave() {
     _rtCurrentOrder = result;
     rtShowSubpage('detail');
     rtRenderDetail(result);
+    loadInventory();
   } catch (err) {
     if (err.message !== 'validation') toast(err.message, 'error');
   } finally {

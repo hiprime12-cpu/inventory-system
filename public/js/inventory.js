@@ -95,8 +95,69 @@ function invRenderSummary(s) {
   if (defItem)  defItem.classList.toggle('inv-sum-danger',  (s.defective_items     || 0) > 0);
 }
 
+// ── 그룹 탭 전용 렌더 ────────────────────────────────────────────
+function invApplyGroupsTab() {
+  const all = _invAll;
+  document.getElementById('invtab-all').textContent        = all.length;
+  document.getElementById('invtab-normal').textContent     = all.filter(r => r.condition_type === 'normal'    && (r.current_stock||0)>0).length;
+  document.getElementById('invtab-defective').textContent  = all.filter(r => r.condition_type === 'defective').length;
+  document.getElementById('invtab-disposal').textContent   = all.filter(r => r.condition_type === 'disposal').length;
+  const ssEl = document.getElementById('invtab-smartstore');
+  if (ssEl) ssEl.textContent = all.filter(r => (r.has_smartstore||0) > 0).length;
+  const grEl = document.getElementById('invtab-groups');
+  if (grEl) grEl.textContent = _invGroups.length;
+
+  // 그룹 행 생성 (백엔드 집계값 사용)
+  let groupRows = _invGroups.map(g => ({
+    _isGroup:        true,
+    id:              g.id,
+    group_name:      g.group_name,
+    category:        g.category  || '',
+    manufacturer:    g.brand     || '',
+    normal_stock:    g.normal_stock    || 0,
+    defective_stock: g.defective_stock || 0,
+    disposal_stock:  g.disposal_stock  || 0,
+    total_stock:     g.total_stock     || 0,
+    item_count:      g.item_count      || 0,
+  }));
+
+  // 구분 카드 필터 적용
+  if (_invCatFilter !== 'all') {
+    groupRows = groupRows.filter(g => {
+      const norm = invNormCat(g.category);
+      if (_invCatFilter === '기타') return !INV_CAT_ORDER.includes(norm);
+      return norm === _invCatFilter;
+    });
+  }
+
+  // 구분순 → 브랜드 → 그룹명 정렬
+  groupRows.sort((a, b) => {
+    const ai = INV_CAT_ORDER.indexOf(invNormCat(a.category));
+    const bi = INV_CAT_ORDER.indexOf(invNormCat(b.category));
+    const ak = ai === -1 ? INV_CAT_ORDER.length : ai;
+    const bk = bi === -1 ? INV_CAT_ORDER.length : bi;
+    if (ak !== bk) return ak - bk;
+    const bc = (a.manufacturer || '').localeCompare(b.manufacturer || '', 'ko');
+    if (bc !== 0) return bc;
+    return (a.group_name || '').localeCompare(b.group_name || '', 'ko');
+  });
+
+  _invFiltered = [];
+  invUpdateCatCounts();
+  invUpdateFilterStatus();
+
+  const tbody = document.getElementById('inv-tbody');
+  if (!groupRows.length) {
+    if (tbody) tbody.innerHTML = '<tr><td colspan="15" class="empty">생성된 그룹이 없습니다. [📦 상품 그룹] 메뉴에서 그룹을 생성하세요.</td></tr>';
+    return;
+  }
+  invRenderTable([], groupRows);
+}
+
 // ── 필터 적용 ────────────────────────────────────────────────────
 function invApplyFilter() {
+  if (_invActiveTab === 'groups') { invApplyGroupsTab(); return; }
+
   const { cat, brand, model, vendor } = _invSearch;
   const qCat    = cat.toLowerCase().trim();
   const qBrand  = brand.toLowerCase().trim();
@@ -138,34 +199,18 @@ function invApplyFilter() {
   const qModel2 = _invSearch.model.toLowerCase().trim();
   const groupRows = qModel2 ? _invGroups.filter(g =>
     g.group_name.toLowerCase().includes(qModel2)
-  ).map(g => {
-    // 그룹에 속한 _invAll 항목들로 재고 합산
-    const members = _invAll.filter(r =>
-      (g.items || []).some(i =>
-        i.manufacturer === r.manufacturer &&
-        i.model_name   === r.model_name   &&
-        (i.spec || '') === (r.spec || '')
-      )
-    );
-    let normalStock = 0, defectiveStock = 0, disposalStock = 0;
-    members.forEach(r => {
-      if (r.condition_type === 'normal')    normalStock    += r.current_stock || 0;
-      if (r.condition_type === 'defective') defectiveStock += r.current_stock || 0;
-      if (r.condition_type === 'disposal')  disposalStock  += r.current_stock || 0;
-    });
-    return {
-      _isGroup:        true,
-      id:              g.id,
-      group_name:      g.group_name,
-      category:        g.category || '',
-      manufacturer:    g.brand    || '',
-      normal_stock:    normalStock,
-      defective_stock: defectiveStock,
-      disposal_stock:  disposalStock,
-      total_stock:     normalStock + defectiveStock + disposalStock,
-      item_count:      (g.items || []).length,
-    };
-  }) : [];
+  ).map(g => ({
+    _isGroup:        true,
+    id:              g.id,
+    group_name:      g.group_name,
+    category:        g.category  || '',
+    manufacturer:    g.brand     || '',
+    normal_stock:    g.normal_stock    || 0,
+    defective_stock: g.defective_stock || 0,
+    disposal_stock:  g.disposal_stock  || 0,
+    total_stock:     g.total_stock     || 0,
+    item_count:      g.item_count      || 0,
+  })) : [];
 
   // 탭 카운트
   const all = _invAll;
@@ -175,6 +220,8 @@ function invApplyFilter() {
   document.getElementById('invtab-disposal').textContent   = all.filter(r => r.condition_type === 'disposal').length;
   const ssEl = document.getElementById('invtab-smartstore');
   if (ssEl) ssEl.textContent = all.filter(r => (r.has_smartstore||0) > 0).length;
+  const grEl = document.getElementById('invtab-groups');
+  if (grEl) grEl.textContent = _invGroups.length;
 
   // 구분 필터 카운트
   invUpdateCatCounts();
@@ -184,6 +231,7 @@ function invApplyFilter() {
 }
 
 function invGetTabFiltered() {
+  if (_invActiveTab === 'groups') return []; // 그룹 탭은 개별 재고행 없음
   return _invAll.filter(r => {
     if (_invActiveTab === 'normal')     return r.condition_type === 'normal' && (r.current_stock || 0) > 0;
     if (_invActiveTab === 'defective')  return r.condition_type === 'defective';
@@ -194,9 +242,22 @@ function invGetTabFiltered() {
 }
 
 function invUpdateCatCounts() {
-  const idMap       = { 'M.2': 'M2', '노트북': '노트북' };
+  const idMap = { 'M.2': 'M2', '노트북': '노트북' };
+  const keys  = ['all', ...INV_CAT_ORDER, '기타'];
+
+  if (_invActiveTab === 'groups') {
+    keys.forEach(cat => {
+      let cnt;
+      if (cat === 'all')       cnt = _invGroups.length;
+      else if (cat === '기타') cnt = _invGroups.filter(g => !INV_CAT_ORDER.includes(invNormCat(g.category || ''))).length;
+      else                     cnt = _invGroups.filter(g => invNormCat(g.category || '') === cat).length;
+      const el = document.getElementById('icf-' + (idMap[cat] || cat));
+      if (el) el.textContent = cnt;
+    });
+    return;
+  }
+
   const tabFiltered = invGetTabFiltered();
-  const keys        = ['all', ...INV_CAT_ORDER, '기타'];
   keys.forEach(cat => {
     let cnt;
     if (cat === 'all')       cnt = tabFiltered.length;
@@ -212,7 +273,7 @@ function invUpdateFilterStatus() {
   const textEl   = document.getElementById('inv-filter-status-text');
   if (!statusEl || !textEl) return;
 
-  const tabLabel = { all: '전체', normal: '정상재고', defective: '불량재고', disposal: '폐기재고', smartstore: '스마트스토어' };
+  const tabLabel = { all: '전체', normal: '정상재고', defective: '불량재고', disposal: '폐기재고', smartstore: '스마트스토어', groups: '그룹' };
   const hasTabFilter = _invActiveTab !== 'all';
   const hasCatFilter = _invCatFilter !== 'all';
 
@@ -755,6 +816,9 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('btn-adj-save')?.addEventListener('click', () => {
     invSaveAdjustment(false);
   });
+
+  // 새로고침
+  document.getElementById('btn-inv-refresh')?.addEventListener('click', () => loadInventory());
 
   // 엑셀 다운로드
   document.getElementById('btn-inv-excel')?.addEventListener('click', invExportExcel);

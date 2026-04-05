@@ -348,6 +348,7 @@ async function ibDetailChangeItemStatus(sel) {
       toast(`이동평균가 ${(result.pctChange * 100).toFixed(1)}% 변동됨`, 'warning');
     }
     toast(`${labels[newStatus]}으로 변경됨`, 'success');
+    loadInventory();
   } catch (err) {
     sel.value = oldStatus;
     sel.dataset.prev = oldStatus;
@@ -390,6 +391,7 @@ async function ibDetailBulkStatus(order, status) {
     }
     // 목록 카드 캐시 갱신 (목록으로 돌아갔을 때 최신 상태 반영)
     loadInboundList();
+    loadInventory();
     // 버튼 active 표시
     document.querySelectorAll('#ib-detail-content .ib-detail-bulk-btn').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.status === status);
@@ -974,6 +976,7 @@ async function ibSave(items) {
     );
     await loadInboundList();
     ibShowSubpage('list');
+    loadInventory();
   } catch (err) { toast(err.message, 'error'); }
 }
 
