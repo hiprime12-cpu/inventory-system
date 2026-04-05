@@ -967,6 +967,8 @@ textarea.form-control { resize: vertical; min-height: 70px; }
 }
 .ob-vendor-item:last-child { border-bottom: none; }
 .ob-vendor-item:hover { background: var(--gray-50); }
+.ob-vendor-new { color: var(--primary); font-weight: 500; border-top: 1px dashed var(--gray-200); }
+.ob-vendor-empty { padding: .5rem .75rem; font-size: .875rem; color: var(--gray-500); }
 .ob-vendor-unreg { color: var(--primary); font-size: .82rem; border-top: 1px dashed var(--gray-200); }
 .ob-new-vendor-badge {
   padding: .5rem .75rem; cursor: pointer; font-size: .82rem;

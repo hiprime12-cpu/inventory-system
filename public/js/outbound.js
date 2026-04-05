@@ -471,32 +471,38 @@ function obUpdateTaxToggle() {
 
 // ── 거래처 인라인 드롭다운 ──────────────────────
 function obFilterVendors(q) {
-  const dd      = document.getElementById('ob-vendor-dropdown');
-  const newBtn  = document.getElementById('btn-ob-new-vendor');
+  const dd     = document.getElementById('ob-vendor-dropdown');
+  const newBtn = document.getElementById('btn-ob-new-vendor');
   if (!dd) return;
 
-  if (!q) {
-    dd.classList.add('hidden');
-    if (newBtn) newBtn.classList.add('hidden');
+  const list = allSalesVendors || [];
+
+  // 목록이 비어있으면 API 로드 후 재시도
+  if (!list.length) {
+    API.get('/sales-vendors').then(data => {
+      if (Array.isArray(data)) {
+        data.forEach(v => { if (!allSalesVendors.some(x => x.id === v.id)) allSalesVendors.push(v); });
+      }
+      obFilterVendors(q);
+    }).catch(() => {});
     return;
   }
 
-  const matches = (allSalesVendors || []).filter(v =>
-    (v.company_name || '').toLowerCase().includes(q.toLowerCase())
-  ).slice(0, 10);
+  const filtered = q
+    ? list.filter(v => (v.company_name || '').toLowerCase().includes(q.toLowerCase())).slice(0, 10)
+    : list.slice(0, 20);
 
-  if (matches.length) {
-    dd.innerHTML = matches.map(v => `
-      <div class="ob-vendor-item" onmousedown="obSelectVendor('${v.id}','${escHtml(v.company_name)}')">
-        ${escHtml(v.company_name)}
-      </div>
-    `).join('');
-    dd.classList.remove('hidden');
-    if (newBtn) newBtn.classList.add('hidden');
+  const newRow = `<div class="ob-vendor-item ob-vendor-new" onmousedown="obShowNewVendorModal()">+ 신규 거래처 등록</div>`;
+
+  if (!filtered.length) {
+    dd.innerHTML = `<div class="ob-vendor-empty">"${escHtml(q)}" 검색 결과 없음</div>${newRow}`;
   } else {
-    dd.classList.add('hidden');
-    if (newBtn) newBtn.classList.remove('hidden');
+    dd.innerHTML = filtered.map(v =>
+      `<div class="ob-vendor-item" onmousedown="obSelectVendor('${v.id}','${escHtml(v.company_name)}')">${escHtml(v.company_name)}</div>`
+    ).join('') + newRow;
   }
+  dd.classList.remove('hidden');
+  if (newBtn) newBtn.classList.add('hidden');
 }
 
 window.obSelectVendor = function(id, name) {
@@ -944,15 +950,26 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // 거래처 인라인 검색
-  document.getElementById('ob-vendor-input')?.addEventListener('input', (e) => {
-    _obVendorSelected = false;
-    document.getElementById('ob-vendor-id').value = '';
-    _obVendorId = null;
-    obFilterVendors(e.target.value.trim());
-  });
-  document.getElementById('ob-vendor-input')?.addEventListener('blur', () => {
-    setTimeout(() => document.getElementById('ob-vendor-dropdown')?.classList.add('hidden'), 200);
-  });
+  let _obVendorTimer = null;
+  const obVendorInp = document.getElementById('ob-vendor-input');
+  if (obVendorInp) {
+    obVendorInp.addEventListener('focus', () => {
+      obFilterVendors(obVendorInp.value.trim());
+    });
+    obVendorInp.addEventListener('input', (e) => {
+      _obVendorSelected = false;
+      document.getElementById('ob-vendor-id').value = '';
+      _obVendorId = null;
+      clearTimeout(_obVendorTimer);
+      _obVendorTimer = setTimeout(() => obFilterVendors(e.target.value.trim()), 300);
+    });
+    obVendorInp.addEventListener('blur', () => {
+      setTimeout(() => document.getElementById('ob-vendor-dropdown')?.classList.add('hidden'), 200);
+    });
+    obVendorInp.addEventListener('keydown', e => {
+      if (e.key === 'Escape') document.getElementById('ob-vendor-dropdown')?.classList.add('hidden');
+    });
+  }
 
   // 전역 클릭으로 모델 드롭다운 닫기
   document.addEventListener('click', (e) => {
