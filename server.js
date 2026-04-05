@@ -29,7 +29,6 @@ app.use('/api/inventory', require('./routes/inventory'));
 app.use('/api/sales',      require('./routes/sales'));
 app.use('/api/company',         require('./routes/company'));
 app.use('/api/dashboard',       require('./routes/dashboard'));
-app.use('/api/product-groups',  require('./routes/productGroups'));
 
 // 헬스체크 (Railway 배포용)
 app.get('/api/health', (req, res) => {

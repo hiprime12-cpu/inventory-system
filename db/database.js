@@ -1043,65 +1043,6 @@ async function seedVendors(adapter) {
   console.log('[DB] 샘플 거래처 생성 완료 (매입/출고)');
 }
 
-// ── ProductGroups 마이그레이션 ─────────────────────────────────
-async function migrateProductGroups(adapter) {
-  try {
-    if (adapter._isPg) {
-      await adapter.runAsync(`
-        CREATE TABLE IF NOT EXISTS product_groups (
-          id          TEXT PRIMARY KEY,
-          group_name  TEXT NOT NULL,
-          category    TEXT,
-          brand       TEXT,
-          created_at  TEXT NOT NULL DEFAULT NOW(),
-          created_by  TEXT,
-          updated_at  TEXT,
-          updated_by  TEXT
-        )
-      `);
-      await adapter.runAsync(`
-        CREATE TABLE IF NOT EXISTS product_group_items (
-          id           TEXT PRIMARY KEY,
-          group_id     TEXT NOT NULL REFERENCES product_groups(id) ON DELETE CASCADE,
-          manufacturer TEXT NOT NULL DEFAULT '',
-          model_name   TEXT NOT NULL DEFAULT '',
-          spec         TEXT NOT NULL DEFAULT '',
-          created_at   TEXT NOT NULL DEFAULT NOW(),
-          created_by   TEXT
-        )
-      `);
-    } else {
-      adapter.sqlite.exec(`
-        CREATE TABLE IF NOT EXISTS product_groups (
-          id          TEXT PRIMARY KEY,
-          group_name  TEXT NOT NULL,
-          category    TEXT,
-          brand       TEXT,
-          created_at  TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
-          created_by  TEXT,
-          updated_at  TEXT,
-          updated_by  TEXT
-        )
-      `);
-      adapter.sqlite.exec(`
-        CREATE TABLE IF NOT EXISTS product_group_items (
-          id           TEXT PRIMARY KEY,
-          group_id     TEXT NOT NULL REFERENCES product_groups(id) ON DELETE CASCADE,
-          manufacturer TEXT NOT NULL DEFAULT '',
-          model_name   TEXT NOT NULL DEFAULT '',
-          spec         TEXT NOT NULL DEFAULT '',
-          created_at   TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
-          created_by   TEXT
-        )
-      `);
-      adapter.sqlite.exec(`CREATE INDEX IF NOT EXISTS idx_pgi_group ON product_group_items(group_id)`);
-    }
-    console.log('[Migration] product_groups 테이블 확인 완료');
-  } catch (err) {
-    console.error('[Migration] migrateProductGroups:', err.message);
-  }
-}
-
 // ── 메인 초기화 ─────────────────────────────────────────────────
 async function initDB() {
   if (process.env.DATABASE_URL) {
@@ -1137,7 +1078,6 @@ async function initDB() {
   await migrateOutboundPaymentStatus(db);
   await migrateInventoryConditionType(db);
   await migrateConditionTypeCols(db);
-  await migrateProductGroups(db);
   await migrateUsersUsername(db);
   await migratePurchaseVendorType(db);
   await seedAdmin(db);

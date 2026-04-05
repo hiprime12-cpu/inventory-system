@@ -99,9 +99,6 @@
         <li class="nav-editor"><a class="nav-link" data-page="sales">
           <span class="nav-icon">💰</span><span class="nav-text">매출/수익</span>
         </a></li>
-        <li class="nav-editor"><a class="nav-link" data-page="product-groups">
-          <span class="nav-icon">📦</span><span class="nav-text">상품 그룹</span>
-        </a></li>
         <li class="nav-admin"><a class="nav-link" data-page="users">
           <span class="nav-icon">👥</span><span class="nav-text">사용자 관리</span>
         </a></li>
@@ -309,7 +306,6 @@
             <button class="tab-btn" data-invtab="defective">불량재고 <span class="tab-count" id="invtab-defective">0</span></button>
             <button class="tab-btn" data-invtab="disposal">폐기재고 <span class="tab-count" id="invtab-disposal">0</span></button>
             <button class="tab-btn" data-invtab="smartstore">🛒 스마트스토어 <span class="tab-count" id="invtab-smartstore">0</span></button>
-            <button class="tab-btn" data-invtab="groups">📦 그룹 <span class="tab-count" id="invtab-groups">0</span></button>
           </div>
 
           <!-- 구분 필터 -->
@@ -1155,33 +1151,6 @@
         </div>
 
         <!-- 사용자 관리 (관리자) -->
-        <!-- 상품 그룹 -->
-        <div id="page-product-groups" class="page">
-          <div class="page-toolbar">
-            <span style="font-weight:700;font-size:.95rem">상품 그룹</span>
-            <div style="flex:1"></div>
-            <button class="btn btn-primary nav-editor" id="btn-pg-add" onclick="pgOpenModal()">+ 그룹 추가</button>
-          </div>
-
-          <div class="table-wrap" style="overflow-x:auto">
-            <table class="data-table" id="pg-table">
-              <thead>
-                <tr>
-                  <th>그룹명</th>
-                  <th>구분</th>
-                  <th>브랜드</th>
-                  <th>포함 상품</th>
-                  <th>합산 재고</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody id="pg-tbody">
-                <tr><td colspan="6" class="empty">조회 중...</td></tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
         <div id="page-users" class="page">
           <div class="tabs">
             <button class="tab active" data-tab="pending">
@@ -1931,81 +1900,6 @@
   </table>
 </div>
 
-<!-- ══ 상품 그룹 생성/수정 모달 ══════════════════════════════════ -->
-<div id="modal-pg-edit" class="modal-overlay hidden">
-  <div class="modal" style="max-width:600px;width:95vw">
-    <div class="modal-hd">
-      <h3 id="pg-modal-title">그룹 추가</h3>
-      <button class="btn-close" onclick="document.getElementById('modal-pg-edit').classList.add('hidden')">✕</button>
-    </div>
-    <div class="modal-bd" style="display:flex;flex-direction:column;gap:.75rem">
-      <div class="form-row-2">
-        <div class="field">
-          <label class="label">그룹명 <span style="color:var(--danger)">*</span></label>
-          <input id="pg-name" class="inp" placeholder="예: 삼성 DDR3 4G">
-        </div>
-        <div class="field">
-          <label class="label">구분</label>
-          <input id="pg-category" class="inp" placeholder="예: RAM">
-        </div>
-      </div>
-      <div class="field">
-        <label class="label">브랜드</label>
-        <input id="pg-brand" class="inp" placeholder="예: 삼성">
-      </div>
-
-      <div style="border-top:1px solid var(--gray-100);padding-top:.75rem">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.5rem">
-          <span style="font-weight:600;font-size:.85rem">포함 상품 목록</span>
-          <button class="btn btn-sm btn-ghost" onclick="pgOpenItemPicker()">+ 상품 추가</button>
-        </div>
-        <div id="pg-items-list" style="display:flex;flex-direction:column;gap:.3rem;min-height:60px">
-          <p class="empty" style="font-size:.8rem;padding:.5rem 0">추가된 상품이 없습니다.</p>
-        </div>
-      </div>
-
-      <!-- 상품 검색 영역 -->
-      <div id="pg-item-picker" class="hidden" style="border:1px solid var(--gray-200);border-radius:6px;padding:.6rem">
-        <div style="font-size:.8rem;font-weight:600;margin-bottom:.4rem">재고에서 상품 선택</div>
-        <input id="pg-picker-search" class="inp" style="margin-bottom:.4rem" placeholder="모델명 또는 브랜드 입력...">
-        <div id="pg-picker-results" style="max-height:180px;overflow-y:auto;font-size:.8rem"></div>
-      </div>
-    </div>
-    <div class="modal-ft">
-      <button class="btn btn-ghost" onclick="document.getElementById('modal-pg-edit').classList.add('hidden')">취소</button>
-      <button class="btn btn-primary" onclick="pgSaveGroup()">저장</button>
-    </div>
-  </div>
-</div>
-
-<!-- ══ 상품 그룹 상세 모달 ════════════════════════════════════════ -->
-<div id="modal-pg-detail" class="modal-overlay hidden">
-  <div class="modal" style="max-width:560px;width:95vw">
-    <div class="modal-hd">
-      <h3 id="pg-detail-title">그룹 상세</h3>
-      <button class="btn-close" onclick="document.getElementById('modal-pg-detail').classList.add('hidden')">✕</button>
-    </div>
-    <div class="modal-bd" id="pg-detail-content"></div>
-    <div class="modal-ft" id="pg-detail-ft">
-      <button class="btn btn-ghost" onclick="document.getElementById('modal-pg-detail').classList.add('hidden')">닫기</button>
-    </div>
-  </div>
-</div>
-
-<!-- ══ 재고 그룹 결과 상세 모달 ════════════════════════════════════ -->
-<div id="modal-inv-group" class="modal-overlay hidden">
-  <div class="modal" style="max-width:520px;width:95vw">
-    <div class="modal-hd">
-      <h3 id="inv-group-title">그룹 상세</h3>
-      <button class="btn-close" onclick="document.getElementById('modal-inv-group').classList.add('hidden')">✕</button>
-    </div>
-    <div class="modal-bd" id="inv-group-content"></div>
-    <div class="modal-ft">
-      <button class="btn btn-ghost" onclick="document.getElementById('modal-inv-group').classList.add('hidden')">닫기</button>
-    </div>
-  </div>
-</div>
-
 <!-- ══ 거래명세서 모달 ═══════════════════════════════════════════ -->
 <div id="modal-ob-statement" class="modal-overlay hidden">
   <div class="modal" style="max-width:800px;width:95vw">
@@ -2035,6 +1929,5 @@
 <script src="/js/company.js"></script>
 <script src="/js/returns.js"></script>
 <script src="/js/sales.js"></script>
-<script src="/js/productGroups.js"></script>
 </body>
 </html>

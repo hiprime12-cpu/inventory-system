@@ -19,8 +19,8 @@ const ROLE_CLASS = {
 
 // 역할별 접근 가능 페이지
 const PAGE_ACCESS = {
-  admin:  ['dashboard','inventory','inbound','outbound','returns','purchase-vendors','sales-vendors','sales','users','company','profile','product-groups'],
-  editor: ['dashboard','inventory','inbound','outbound','returns','purchase-vendors','sales-vendors','sales','company','profile','product-groups'],
+  admin:  ['dashboard','inventory','inbound','outbound','returns','purchase-vendors','sales-vendors','sales','users','company','profile'],
+  editor: ['dashboard','inventory','inbound','outbound','returns','purchase-vendors','sales-vendors','sales','company','profile'],
   viewer: ['dashboard','inventory','company','profile'],
 };
 
@@ -112,7 +112,6 @@ function showPage(name) {
     'purchase-vendors': '매입거래처 관리',
     'sales-vendors':    '출고거래처 관리',
     sales: '매출/수익', users: '사용자 관리', company: '회사 정보', profile: '내 정보',
-    'product-groups': '상품 그룹',
   };
   document.getElementById('page-title').textContent = titles[name] || name;
 
@@ -129,7 +128,6 @@ function showPage(name) {
     sales:              () => loadSalesList(),
     company:            () => loadCompanyInfo(),
     profile:            loadProfile,
-    'product-groups':   () => loadProductGroups(),
   };
   if (loaders[name]) loaders[name]();
 }

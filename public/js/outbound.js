@@ -17,8 +17,6 @@ let _obSearchTimer     = null;   // 디바운스 타이머
 let _obRowCount        = 0;      // 현재 행 수
 let _obDropdownItems        = [];  // 모델 드롭다운 아이템 캐시
 let _obDropdownRow          = -1;  // 모델 드롭다운이 열린 행 인덱스
-let _obGroups               = [];  // 상품 그룹 목록
-let _obGroupDropdownItems   = [];  // 드롭다운 그룹 행 캐시
 let _obVendorSelected  = false;  // 거래처 목록에서 선택 여부
 let _obVendorId        = null;   // 선택된 거래처 ID
 
@@ -297,7 +295,6 @@ async function obShowForm(id = null) {
 
   // 재고 로드 (condition_type별 분리 목록)
   try { _obInventory = await API.get('/outbound/inventory-search'); } catch { /* 무시 */ }
-  try { _obGroups    = await API.get('/product-groups'); }           catch { _obGroups = []; }
 
   // Flatpickr 초기화
   if (!_obFlatpickr) {
@@ -611,19 +608,6 @@ window.obShowModelDropdown = function(inputEl, rowIdx) {
   const limited = matches.slice(0, 20);
   _obDropdownItems = limited;
 
-  // ── 그룹 매칭 ─────────────────────────────────
-  const groupMatches = q
-    ? _obGroups.filter(g => g.group_name.toLowerCase().includes(q))
-    : [];
-
-  _obGroupDropdownItems = groupMatches.map(g => ({
-    id:              g.id,
-    group_name:      g.group_name,
-    category:        g.category  || '',
-    normal_stock:    g.normal_stock    || 0,
-    defective_stock: g.defective_stock || 0,
-  }));
-
   const dd = document.getElementById('ob-model-dropdown');
   if (!dd) return;
   const rect = inputEl.getBoundingClientRect();
@@ -634,43 +618,9 @@ window.obShowModelDropdown = function(inputEl, rowIdx) {
   const tbody = document.getElementById('ob-model-dropdown-tbody');
   if (!tbody) return;
 
-  // ── 그룹 섹션 HTML ──────────────────────────────
-  let groupHtml = '';
-  if (_obGroupDropdownItems.length) {
-    groupHtml = `<tr class="ob-dropdown-section"><td colspan="6">📦 그룹 검색 결과</td></tr>`;
-    groupHtml += _obGroupDropdownItems.map((g, gi) => {
-      const rows = [];
-      if (g.normal_stock > 0) {
-        rows.push(`<tr class="ob-model-row ob-group-row" onmousedown="obSelectGroup(${gi},'normal')">
-          <td colspan="4"><span style="color:var(--gray-400);margin-right:.3rem">📦</span><strong>${escHtml(g.group_name)}</strong></td>
-          <td><span class="ob-cond-badge ob-cond-normal">정상</span></td>
-          <td>${g.normal_stock}개</td>
-        </tr>`);
-      }
-      if (g.defective_stock > 0) {
-        rows.push(`<tr class="ob-model-row ob-group-row" onmousedown="obSelectGroup(${gi},'defective')">
-          <td colspan="4"><span style="color:var(--gray-400);margin-right:.3rem">📦</span><strong>${escHtml(g.group_name)}</strong></td>
-          <td><span class="ob-cond-badge ob-cond-defective">불량</span></td>
-          <td>${g.defective_stock}개</td>
-        </tr>`);
-      }
-      if (!rows.length) {
-        rows.push(`<tr class="ob-model-row ob-row-nostock">
-          <td colspan="4"><span style="color:var(--gray-400);margin-right:.3rem">📦</span>${escHtml(g.group_name)}</td>
-          <td>—</td><td class="ob-stock-zero">재고없음</td>
-        </tr>`);
-      }
-      return rows.join('');
-    }).join('');
-
-    if (limited.length) {
-      groupHtml += `<tr class="ob-dropdown-section"><td colspan="6">개별 상품 검색 결과</td></tr>`;
-    }
-  }
-
   // ── 개별 상품 섹션 HTML ─────────────────────────
   let rows = '';
-  if (!limited.length && !_obGroupDropdownItems.length) {
+  if (!limited.length) {
     rows = `<tr><td colspan="6" class="empty" style="padding:.5rem">검색 결과 없음</td></tr>`;
   } else if (limited.length) {
     rows = limited.map((inv, i) => {
@@ -700,7 +650,7 @@ window.obShowModelDropdown = function(inputEl, rowIdx) {
     ? `<tr><td colspan="6" style="padding:.35rem .6rem;font-size:.8rem;color:var(--gray-500);background:#fafafa">... 외 ${matches.length - 20}개 더 있습니다.</td></tr>`
     : '';
 
-  tbody.innerHTML = groupHtml + hintRow + rows + moreRow;
+  tbody.innerHTML = hintRow + rows + moreRow;
   dd.classList.remove('hidden');
 };
 
@@ -724,87 +674,6 @@ window.obSelectModelByIdx = function(i) {
   if (badgeSpan) { badgeSpan.className = `ob-cond-badge ${ctCls}`; badgeSpan.textContent = ctLabel; }
   obCalcRow(_obDropdownRow);
   document.getElementById('ob-model-dropdown')?.classList.add('hidden');
-};
-
-// ── 그룹 선택 — 그룹 멤버 항목으로 행 확장 ────
-window.obSelectGroup = async function(groupIdx, conditionType) {
-  const g = _obGroupDropdownItems[groupIdx];
-  if (!g) return;
-  document.getElementById('ob-model-dropdown')?.classList.add('hidden');
-
-  let groupDetail;
-  try { groupDetail = await API.get(`/product-groups/${g.id}`); }
-  catch (err) { toast(err.message, 'error'); return; }
-
-  // 해당 상태의 재고가 있는 멤버만
-  const stockKey = conditionType === 'defective' ? 'defective_stock' : 'normal_stock';
-  const members  = (groupDetail.items || []).filter(i => (i[stockKey] || 0) > 0);
-
-  if (!members.length) {
-    toast('해당 상태의 재고가 없습니다.', 'error'); return;
-  }
-
-  // 총 재고 합산 → 그룹 재고 부족 시 경고용
-  const totalGroupStock = members.reduce((s, i) => s + (i[stockKey] || 0), 0);
-
-  // 컨디션 배지 업데이트 헬퍼
-  const applyCondition = (row, ct) => {
-    const ctLabel = ct === 'defective' ? '불량' : '정상';
-    const ctCls   = ct === 'defective' ? 'ob-cond-defective' : 'ob-cond-normal';
-    const hp = row.querySelector('.ob-inp-condition');
-    const bs = row.querySelector('.ob-cond-badge');
-    if (hp) hp.value = ct;
-    if (bs) { bs.className = `ob-cond-badge ${ctCls}`; bs.textContent = ctLabel; }
-  };
-
-  // 현재 행 → 첫 번째 멤버로 채우기
-  const currentRow = document.getElementById(`ob-row-${_obDropdownRow}`);
-  const firstMember = members[0];
-  const firstInv = _obInventory.find(inv =>
-    inv.manufacturer === firstMember.manufacturer &&
-    inv.model_name   === firstMember.model_name   &&
-    (inv.spec || '') === (firstMember.spec || '')  &&
-    inv.condition_type === conditionType
-  );
-  if (currentRow) {
-    currentRow.querySelector('.ob-inp-category').value = firstMember.category || g.category || '';
-    currentRow.querySelector('.ob-inp-mfr').value      = firstMember.manufacturer;
-    currentRow.querySelector('.ob-inp-model').value    = firstMember.model_name;
-    currentRow.querySelector('.ob-inp-spec').value     = firstMember.spec || '';
-    currentRow.dataset.maxStock = firstInv ? firstInv.current_stock : (firstMember[stockKey] || 0);
-    currentRow.dataset.groupTotalStock = totalGroupStock;
-    applyCondition(currentRow, conditionType);
-    obCalcRow(_obDropdownRow);
-  }
-
-  // 나머지 멤버 → 새 행 추가
-  for (let i = 1; i < members.length; i++) {
-    const item = members[i];
-    const inv  = _obInventory.find(r =>
-      r.manufacturer === item.manufacturer &&
-      r.model_name   === item.model_name   &&
-      (r.spec || '') === (item.spec || '') &&
-      r.condition_type === conditionType
-    );
-    obAddRow();
-    const newIdx = _obRowCount - 1;
-    obFillRow(newIdx, {
-      category:       item.category || g.category || '',
-      manufacturer:   item.manufacturer,
-      model_name:     item.model_name,
-      spec:           item.spec || '',
-      condition_type: conditionType,
-      quantity:       0,
-      sale_price:     0,
-    });
-    const newRow = document.getElementById(`ob-row-${newIdx}`);
-    if (newRow) {
-      newRow.dataset.maxStock        = inv ? inv.current_stock : (item[stockKey] || 0);
-      newRow.dataset.groupTotalStock = totalGroupStock;
-    }
-  }
-
-  toast(`그룹 "${g.group_name}" (${members.length}개 항목) 추가됨 — 합산 ${conditionType === 'defective' ? '불량' : '정상'} 재고: ${totalGroupStock}개`, 'success');
 };
 
 // ── 저장 ─────────────────────────────────────
