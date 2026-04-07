@@ -312,8 +312,8 @@ router.put('/items/:itemId/smartstore', auth('editor'), async (req, res) => {
       'SELECT * FROM inbound WHERE id = ? AND is_deleted = 0', [req.params.itemId]
     );
     if (!item) return res.status(404).json({ error: '품목을 찾을 수 없습니다.' });
-    if (item.status !== 'completed')
-      return res.status(400).json({ error: '매입완료 상태인 품목만 스마트스토어 등록할 수 있습니다.' });
+    if (item.status !== 'completed' && item.status !== 'priority')
+      return res.status(400).json({ error: '매입완료 또는 우선등록 상태인 품목만 스마트스토어 등록할 수 있습니다.' });
 
     const register = req.body.is_smartstore ? 1 : 0;
     const n        = nowStr();

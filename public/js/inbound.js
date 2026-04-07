@@ -203,7 +203,7 @@ function renderIbDetail(order) {
            <option value="priority"  ${it.status === 'priority'  ? 'selected' : ''}>⚠️ 우선등록</option>
          </select>`
       : `<span class="ib-badge ${{ completed:'ib-badge-completed', pending:'ib-badge-pending', priority:'ib-badge-priority' }[it.status]||''}">${{ completed:'매입완료', pending:'매입미완료', priority:'⚠️우선등록' }[it.status]||it.status}</span>`;
-    const ssCell = (it.status === 'completed' && isEditor)
+    const ssCell = ((it.status === 'completed' || it.status === 'priority') && isEditor)
       ? (it.is_smartstore
           ? `<button class="btn btn-xs btn-ss-on"  data-item-id="${it.id}" onclick="ibToggleSmartstore('${it.id}', 1)">✅ 스마트스토어 등록됨</button>`
           : `<button class="btn btn-xs btn-ss-off" data-item-id="${it.id}" onclick="ibToggleSmartstore('${it.id}', 0)">🛒 스마트스토어 등록</button>`)
