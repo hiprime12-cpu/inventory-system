@@ -1010,12 +1010,12 @@
               <thead id="pvendor-thead">
                 <tr>
                   <th>유형</th><th>이름/회사명</th><th>전화번호</th>
-                  <th>담당자</th><th>특이사항</th>
+                  <th>담당자</th><th>특이사항</th><th>사업자등록증</th>
                   <th>등록자</th><th>등록일시</th><th>수정자</th><th>수정일시</th>
                 </tr>
               </thead>
               <tbody id="pvendor-tbody">
-                <tr><td colspan="9" class="empty">로딩 중...</td></tr>
+                <tr><td colspan="10" class="empty">로딩 중...</td></tr>
               </tbody>
             </table>
           </div>
@@ -1041,12 +1041,12 @@
               <thead>
                 <tr>
                   <th>상호명</th><th>이름</th><th>사업자번호</th><th>전화번호</th>
-                  <th>주소</th><th>특이사항</th>
+                  <th>주소</th><th>특이사항</th><th>사업자등록증</th>
                   <th>등록자</th><th>등록일시</th><th>수정자</th><th>수정일시</th>
                 </tr>
               </thead>
               <tbody id="svendor-tbody">
-                <tr><td colspan="10" class="empty">로딩 중...</td></tr>
+                <tr><td colspan="11" class="empty">로딩 중...</td></tr>
               </tbody>
             </table>
           </div>
@@ -1411,7 +1411,15 @@
           <div class="vdd-label">전화번호</div>
           <div class="vdd-value" id="vdd-phone">-</div>
         </div>
-        <div class="vdd-field"></div>
+        <div class="vdd-field">
+          <div class="vdd-label">사업자등록증</div>
+          <div class="vdd-value" style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+            <span id="vdd-license">-</span>
+            <button type="button" class="btn btn-xs btn-ghost" id="btn-vdd-upload-license" style="display:none">업로드</button>
+            <button type="button" class="btn btn-xs btn-ghost" id="btn-vdd-delete-license" style="display:none;color:#e03131">삭제</button>
+            <input type="file" id="vdd-license-input" accept=".jpg,.jpeg,.png,.pdf" style="display:none" />
+          </div>
+        </div>
       </div>
 
       <div class="vdd-field">

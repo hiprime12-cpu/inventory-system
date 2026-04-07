@@ -16,6 +16,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // 정적 파일 서빙
 app.use(express.static(path.join(__dirname, 'public')));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // API 라우트
 app.use('/api/auth',      require('./routes/auth'));

@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>사업자등록증</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Pretendard', 'Apple SD Gothic Neo', sans-serif; background: #f0f0f0; min-height: 100vh; display: flex; flex-direction: column; }
+    .lv-header {
+      background: #fff;
+      border-bottom: 1px solid #ddd;
+      padding: 12px 20px;
+      font-size: 1rem;
+      font-weight: 600;
+      color: #222;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+    }
+    .lv-header-icon { font-size: 1.1rem; }
+    .lv-content {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 24px 16px;
+    }
+    .lv-content img {
+      max-width: 100%;
+      max-height: calc(100vh - 80px);
+      object-fit: contain;
+      box-shadow: 0 4px 20px rgba(0,0,0,.15);
+      background: #fff;
+      border-radius: 4px;
+    }
+    .lv-content embed, .lv-content iframe {
+      width: min(900px, 100%);
+      height: calc(100vh - 80px);
+      border: none;
+      box-shadow: 0 4px 20px rgba(0,0,0,.15);
+      border-radius: 4px;
+      background: #fff;
+    }
+    .lv-msg {
+      text-align: center;
+      padding: 60px 20px;
+      color: #888;
+      font-size: .95rem;
+    }
+    .lv-msg .lv-icon { font-size: 2.5rem; margin-bottom: 12px; }
+  </style>
+</head>
+<body>
+  <div class="lv-header">
+    <span class="lv-header-icon">📄</span>
+    <span id="lv-title">사업자등록증</span>
+  </div>
+  <div class="lv-content" id="lv-content">
+    <div class="lv-msg"><div class="lv-icon">⏳</div>불러오는 중...</div>
+  </div>
+
+  <script>
+    (async () => {
+      const params     = new URLSearchParams(location.search);
+      const vendorId   = params.get('id');
+      const vendorType = params.get('type') || 'sales'; // 'sales' | 'purchase'
+      const token      = localStorage.getItem('token');
+      const titleEl    = document.getElementById('lv-title');
+      const contentEl  = document.getElementById('lv-content');
+
+      function showMsg(icon, text) {
+        contentEl.innerHTML = `<div class="lv-msg"><div class="lv-icon">${icon}</div>${text}</div>`;
+      }
+
+      if (!vendorId) { showMsg('⚠️', '거래처 정보가 없습니다.'); return; }
+
+      try {
+        const apiPath = vendorType === 'purchase' ? 'purchase-vendors' : 'sales-vendors';
+        const res = await fetch(`/api/${apiPath}/${vendorId}`, {
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+
+        if (res.status === 401) { showMsg('🔒', '로그인이 필요합니다.'); return; }
+        if (!res.ok)           { showMsg('⚠️', '거래처를 찾을 수 없습니다.'); return; }
+
+        const vendor      = await res.json();
+        const companyName = vendor.company_name || vendor.individual_name || '거래처';
+        const pageTitle   = `${companyName} - 사업자등록증`;
+
+        document.title  = pageTitle;
+        titleEl.textContent = pageTitle;
+
+        if (!vendor.business_license_file) {
+          showMsg('📭', '등록된 사업자등록증이 없습니다.');
+          return;
+        }
+
+        const fileUrl = `/uploads/business-license/${vendor.business_license_file}`;
+        const ext     = vendor.business_license_file.split('.').pop().toLowerCase();
+
+        if (ext === 'pdf') {
+          contentEl.innerHTML = `<embed src="${fileUrl}" type="application/pdf" />`;
+        } else {
+          contentEl.innerHTML = `<img src="${fileUrl}" alt="사업자등록증" />`;
+        }
+      } catch (err) {
+        showMsg('❌', '오류가 발생했습니다.');
+      }
+    })();
+  </script>
+</body>
+</html>

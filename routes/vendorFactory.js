@@ -1,9 +1,35 @@
 'use strict';
 
+const path   = require('path');
+const fs     = require('fs');
+const multer = require('multer');
 const { v4: uuidv4 } = require('uuid');
 const { getDB, nowStr } = require('../db/database');
 const auth  = require('../middleware/auth');
 const { writeAuditLog, moveToTrash } = require('../middleware/audit');
+
+// ── 사업자등록증 업로드 multer 설정 ─────────────────────────────
+const LICENSE_DIR = path.join(__dirname, '..', 'uploads', 'business-license');
+fs.mkdirSync(LICENSE_DIR, { recursive: true });
+
+const licenseStorage = multer.diskStorage({
+  destination: LICENSE_DIR,
+  filename(req, file, cb) {
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, `${req.params.id}_${Date.now()}${ext}`);
+  },
+});
+
+const uploadLicense = multer({
+  storage: licenseStorage,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+  fileFilter(req, file, cb) {
+    const allowed = ['.jpg', '.jpeg', '.png', '.pdf'];
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (allowed.includes(ext)) cb(null, true);
+    else cb(new Error('jpg, jpeg, png, pdf 파일만 업로드 가능합니다.'));
+  },
+});
 
 /**
  * 매입거래처(purchase_vendors) / 출고거래처(sales_vendors) 공용 CRUD 라우터 팩토리
@@ -227,6 +253,54 @@ function makeVendorRouter(tableName) {
 
       const updated = await db.getAsync(`SELECT * FROM ${tableName} WHERE id = ?`, [req.params.id]);
       await writeAuditLog(tableName, req.params.id, 'update', old, updated, req.user.id);
+      res.json(updated);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+  });
+
+  // ── POST /:id/license (사업자등록증 업로드) ──
+  router.post('/:id/license', auth('editor'), uploadLicense.single('license'), async (req, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ error: '파일을 선택해주세요.' });
+      const db  = getDB();
+      const row = await db.getAsync(
+        `SELECT * FROM ${tableName} WHERE id = ? AND is_deleted = 0`, [req.params.id]
+      );
+      if (!row) {
+        fs.unlink(req.file.path, () => {});
+        return res.status(404).json({ error: '거래처를 찾을 수 없습니다.' });
+      }
+      // 기존 파일 삭제
+      if (row.business_license_file) {
+        fs.unlink(path.join(LICENSE_DIR, row.business_license_file), () => {});
+      }
+      await db.runAsync(
+        `UPDATE ${tableName} SET business_license_file=?, updated_at=?, updated_by=? WHERE id=?`,
+        [req.file.filename, nowStr(), req.user.id, req.params.id]
+      );
+      const updated = await db.getAsync(`SELECT * FROM ${tableName} WHERE id=?`, [req.params.id]);
+      res.json(updated);
+    } catch (err) {
+      if (req.file) fs.unlink(req.file.path, () => {});
+      res.status(500).json({ error: err.message });
+    }
+  });
+
+  // ── DELETE /:id/license (사업자등록증 삭제) ──
+  router.delete('/:id/license', auth('editor'), async (req, res) => {
+    try {
+      const db  = getDB();
+      const row = await db.getAsync(
+        `SELECT * FROM ${tableName} WHERE id = ? AND is_deleted = 0`, [req.params.id]
+      );
+      if (!row) return res.status(404).json({ error: '거래처를 찾을 수 없습니다.' });
+      if (row.business_license_file) {
+        fs.unlink(path.join(LICENSE_DIR, row.business_license_file), () => {});
+      }
+      await db.runAsync(
+        `UPDATE ${tableName} SET business_license_file=NULL, updated_at=?, updated_by=? WHERE id=?`,
+        [nowStr(), req.user.id, req.params.id]
+      );
+      const updated = await db.getAsync(`SELECT * FROM ${tableName} WHERE id=?`, [req.params.id]);
       res.json(updated);
     } catch (err) { res.status(500).json({ error: err.message }); }
   });

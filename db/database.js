@@ -101,6 +101,8 @@ async function runMigrations(adapter) {
     { table: 'inbound',          column: 'is_smartstore',             def: 'INTEGER NOT NULL DEFAULT 0' },
     { table: 'inbound',          column: 'smartstore_registered_at',  def: 'TEXT' },
     { table: 'inbound',          column: 'smartstore_registered_by',  def: 'TEXT' },
+    { table: 'sales_vendors',    column: 'business_license_file',     def: 'TEXT' },
+    { table: 'purchase_vendors', column: 'business_license_file',     def: 'TEXT' },
   ];
 
   for (const c of cols) {

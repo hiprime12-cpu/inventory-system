@@ -198,6 +198,12 @@ function truncate(str, max = 18) {
   return str.length > max ? str.slice(0, max) + '…' : str;
 }
 
+function licenseDisplayName(filename) {
+  if (!filename) return null;
+  const ext = filename.split('.').pop().toLowerCase();
+  return `사업자등록증.${ext}`;
+}
+
 // ══════════════════════════════════════════════
 //  로그인 화면
 // ══════════════════════════════════════════════
@@ -647,7 +653,7 @@ function renderVendorTable(list) {
     : list;
 
   if (!sorted.length) {
-    const colspan = isSales ? '10' : '9';
+    const colspan = isSales ? '11' : '10';
     tbody.innerHTML = `<tr><td colspan="${colspan}" class="empty">등록된 거래처가 없습니다.</td></tr>`;
     return;
   }
@@ -663,6 +669,10 @@ function renderVendorTable(list) {
         : (v.phone ? fmtPhone(v.phone) : '-');
       const manager  = vt === 'company' ? escHtml(v.manager_name || '-') : '-';
       const notes    = vt === 'individual' ? escHtml(truncate(v.individual_notes)) : escHtml(truncate(v.notes));
+      const licFile  = v.business_license_file;
+      const licCell  = licFile
+        ? `<td><a class="license-link" href="/license-viewer?id=${v.id}&type=purchase" target="_blank" onclick="event.stopPropagation()">${escHtml(licenseDisplayName(licFile))}</a></td>`
+        : `<td class="cell-empty">-</td>`;
       return `
         <tr class="vendor-row" onclick="openVendorDetail('${v.id}')">
           <td><span class="pv-type-badge ${typeCls}">${typeLabel}</span></td>
@@ -670,6 +680,7 @@ function renderVendorTable(list) {
           <td>${phone}</td>
           <td>${manager}</td>
           <td class="cell-notes" title="${notes}">${notes}</td>
+          ${licCell}
           <td>${escHtml(v.created_by_name || '-')}</td>
           <td class="cell-date">${fmtDateTime(v.created_at)}</td>
           <td>${escHtml(v.updated_by_name || '-')}</td>
@@ -679,6 +690,10 @@ function renderVendorTable(list) {
     }
     const starMark  = (isSales && v.is_important) ? '<span class="v-star-mark">★</span> ' : '';
     const nameCell  = isSales ? `<td>${escHtml(v.name || '-')}</td>` : '';
+    const licFile   = v.business_license_file;
+    const sLicCell  = licFile
+      ? `<td><a class="license-link" href="/license-viewer?id=${v.id}&type=sales" target="_blank" onclick="event.stopPropagation()">${escHtml(licenseDisplayName(licFile))}</a></td>`
+      : `<td class="cell-empty">-</td>`;
     return `
       <tr class="vendor-row" onclick="openVendorDetail('${v.id}')">
         <td>${starMark}${escHtml(v.company_name)}</td>
@@ -687,6 +702,7 @@ function renderVendorTable(list) {
         <td>${fmtPhone(v.phone)}</td>
         <td class="cell-addr" title="${escHtml(v.registered_address || '')}">${escHtml(truncate(v.registered_address))}</td>
         <td class="cell-notes" title="${escHtml(v.notes || '')}">${escHtml(truncate(v.notes))}</td>
+        ${sLicCell}
         <td>${escHtml(v.created_by_name || '-')}</td>
         <td class="cell-date">${fmtDateTime(v.created_at)}</td>
         <td>${escHtml(v.updated_by_name || '-')}</td>
@@ -870,6 +886,19 @@ window.openVendorDetail = async function(id) {
     document.getElementById('btn-vdd-delete').style.display =
       currentUser?.role === 'admin' ? '' : 'none';
 
+    // 사업자등록증
+    const licFile  = v.business_license_file;
+    const licEl    = document.getElementById('vdd-license');
+    const vType    = _currentVendorType; // 'sales' | 'purchase'
+    if (licFile) {
+      licEl.innerHTML = `<a class="license-link" href="/license-viewer?id=${v.id}&type=${vType}" target="_blank">${escHtml(licenseDisplayName(licFile))}</a>`;
+    } else {
+      licEl.textContent = '-';
+    }
+    const isEditor = currentUser?.role === 'editor' || currentUser?.role === 'admin';
+    document.getElementById('btn-vdd-upload-license').style.display = isEditor ? '' : 'none';
+    document.getElementById('btn-vdd-delete-license').style.display = (isEditor && licFile) ? '' : 'none';
+
     setDetailMode('view');
     document.getElementById('modal-vendor-detail').classList.remove('hidden');
   } catch (err) { toast(err.message, 'error'); }
@@ -894,6 +923,61 @@ function closeVendorDetail() {
   document.getElementById('modal-vendor-detail').classList.add('hidden');
   _currentVendor = null;
 }
+
+// ── 사업자등록증 업로드/삭제 ──
+document.getElementById('btn-vdd-upload-license').addEventListener('click', () => {
+  document.getElementById('vdd-license-input').click();
+});
+
+document.getElementById('vdd-license-input').addEventListener('change', async (e) => {
+  const file = e.target.files[0];
+  if (!file || !_currentVendor) { e.target.value = ''; return; }
+  const formData = new FormData();
+  formData.append('license', file);
+  const btn = document.getElementById('btn-vdd-upload-license');
+  btn.disabled = true;
+  btn.textContent = '업로드 중...';
+  try {
+    const token = localStorage.getItem('token');
+    const res = await fetch(`/api${vendorApiPath()}/${_currentVendor.id}/license`, {
+      method: 'POST',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    });
+    const data = await res.json();
+    if (!res.ok) { toast(data.error || '업로드 실패', 'error'); return; }
+    _currentVendor = data;
+    const licFile = data.business_license_file;
+    const licEl   = document.getElementById('vdd-license');
+    licEl.innerHTML = `<a class="license-link" href="/license-viewer?id=${data.id}&type=${_currentVendorType}" target="_blank">${escHtml(licenseDisplayName(licFile))}</a>`;
+    document.getElementById('btn-vdd-delete-license').style.display = '';
+    toast('사업자등록증이 업로드되었습니다.', 'success');
+    await loadVendors(_currentVendorType);
+  } catch (err) { toast('업로드 중 오류가 발생했습니다.', 'error'); }
+  finally { btn.disabled = false; btn.textContent = '업로드'; e.target.value = ''; }
+});
+
+document.getElementById('btn-vdd-delete-license').addEventListener('click', async () => {
+  if (!_currentVendor) return;
+  if (!confirm('사업자등록증을 삭제하시겠습니까?')) return;
+  const btn = document.getElementById('btn-vdd-delete-license');
+  btn.disabled = true;
+  try {
+    const token = localStorage.getItem('token');
+    const res = await fetch(`/api${vendorApiPath()}/${_currentVendor.id}/license`, {
+      method: 'DELETE',
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    const data = await res.json();
+    if (!res.ok) { toast(data.error || '삭제 실패', 'error'); return; }
+    _currentVendor = data;
+    document.getElementById('vdd-license').textContent = '-';
+    document.getElementById('btn-vdd-delete-license').style.display = 'none';
+    toast('사업자등록증이 삭제되었습니다.', 'success');
+    await loadVendors(_currentVendorType);
+  } catch (err) { toast('삭제 중 오류가 발생했습니다.', 'error'); }
+  finally { btn.disabled = false; }
+});
 
 // ── 수정 모드 전환 (폼 채우기) ──
 function openDetailEditMode() {

@@ -545,6 +545,9 @@ textarea.form-control { resize: vertical; min-height: 70px; }
 .cell-date  { white-space: nowrap; color: var(--gray-600); font-size: .8rem; }
 .cell-action { white-space: nowrap; }
 .cell-action .btn + .btn { margin-left: .3rem; }
+.cell-empty { color: var(--gray-400); }
+.license-link { color: #228be6; text-decoration: none; white-space: nowrap; }
+.license-link:hover { text-decoration: underline; }
 
 /* ── 행 클릭 ── */
 .vendor-row { cursor: pointer; }
