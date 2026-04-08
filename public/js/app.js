@@ -671,7 +671,7 @@ function renderVendorTable(list) {
       const notes    = vt === 'individual' ? escHtml(truncate(v.individual_notes)) : escHtml(truncate(v.notes));
       const licFile  = v.business_license_file;
       const licCell  = licFile
-        ? `<td><a class="license-link" href="/license-viewer?id=${v.id}&type=purchase" target="_blank" onclick="event.stopPropagation()">${escHtml(licenseDisplayName(licFile))}</a></td>`
+        ? `<td><a class="license-link" href="/license-viewer.html?id=${v.id}&type=purchase" target="_blank" onclick="event.stopPropagation()">${escHtml(licenseDisplayName(licFile))}</a></td>`
         : `<td class="cell-empty">-</td>`;
       return `
         <tr class="vendor-row" onclick="openVendorDetail('${v.id}')">
@@ -692,7 +692,7 @@ function renderVendorTable(list) {
     const nameCell  = isSales ? `<td>${escHtml(v.name || '-')}</td>` : '';
     const licFile   = v.business_license_file;
     const sLicCell  = licFile
-      ? `<td><a class="license-link" href="/license-viewer?id=${v.id}&type=sales" target="_blank" onclick="event.stopPropagation()">${escHtml(licenseDisplayName(licFile))}</a></td>`
+      ? `<td><a class="license-link" href="/license-viewer.html?id=${v.id}&type=sales" target="_blank" onclick="event.stopPropagation()">${escHtml(licenseDisplayName(licFile))}</a></td>`
       : `<td class="cell-empty">-</td>`;
     return `
       <tr class="vendor-row" onclick="openVendorDetail('${v.id}')">
@@ -891,7 +891,7 @@ window.openVendorDetail = async function(id) {
     const licEl    = document.getElementById('vdd-license');
     const vType    = _currentVendorType; // 'sales' | 'purchase'
     if (licFile) {
-      licEl.innerHTML = `<a class="license-link" href="/license-viewer?id=${v.id}&type=${vType}" target="_blank">${escHtml(licenseDisplayName(licFile))}</a>`;
+      licEl.innerHTML = `<a class="license-link" href="/license-viewer.html?id=${v.id}&type=${vType}" target="_blank">${escHtml(licenseDisplayName(licFile))}</a>`;
     } else {
       licEl.textContent = '-';
     }
@@ -949,7 +949,7 @@ document.getElementById('vdd-license-input').addEventListener('change', async (e
     _currentVendor = data;
     const licFile = data.business_license_file;
     const licEl   = document.getElementById('vdd-license');
-    licEl.innerHTML = `<a class="license-link" href="/license-viewer?id=${data.id}&type=${_currentVendorType}" target="_blank">${escHtml(licenseDisplayName(licFile))}</a>`;
+    licEl.innerHTML = `<a class="license-link" href="/license-viewer.html?id=${data.id}&type=${_currentVendorType}" target="_blank">${escHtml(licenseDisplayName(licFile))}</a>`;
     document.getElementById('btn-vdd-delete-license').style.display = '';
     toast('사업자등록증이 업로드되었습니다.', 'success');
     await loadVendors(_currentVendorType);

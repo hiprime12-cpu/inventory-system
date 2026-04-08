@@ -425,7 +425,7 @@ router.post('/', auth('editor'), async (req, res) => {
     if (!items?.length) return res.status(400).json({ error: '품목이 없습니다.' });
 
     for (const it of items) {
-      if (!it.manufacturer?.trim()) return res.status(400).json({ error: '브랜드는 필수입니다.' });
+      if ((it.condition_type || 'normal') === 'normal' && !it.manufacturer?.trim()) return res.status(400).json({ error: '브랜드는 필수입니다.' });
       if (!it.model_name?.trim())   return res.status(400).json({ error: '모델명은 필수입니다.' });
       if (!(Number(it.quantity) > 0))  return res.status(400).json({ error: '수량은 1 이상이어야 합니다.' });
       if (Number(it.purchase_price) < 0) return res.status(400).json({ error: '매입가는 0 이상이어야 합니다.' });

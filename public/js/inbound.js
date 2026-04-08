@@ -601,7 +601,7 @@ function ibRenderDirectTable(prefill) {
       <tr data-row="${i}">
         <td style="text-align:center;color:var(--gray-600)">${i + 1}</td>
         <td><input class="ib-inp" data-field="category"     value="${escHtml(p.category || '')}"     placeholder="구분" /></td>
-        <td><input class="ib-inp" data-field="manufacturer" value="${escHtml(p.manufacturer || '')}" placeholder="브랜드" /></td>
+        <td><input class="ib-inp" data-field="manufacturer" value="${escHtml(p.manufacturer || '')}" placeholder="브랜드" /><span class="req ib-mfr-star"${cond !== 'normal' ? ' style="display:none"' : ''}> *</span></td>
         <td><input class="ib-inp" data-field="model_name"   value="${escHtml(p.model_name || '')}"   placeholder="모델명" /></td>
         <td>
           <div class="ib-type-toggle">
@@ -652,6 +652,14 @@ function ibRenderDirectTable(prefill) {
   // 개별 상태 드롭다운 변경 시 행 스타일 반영
   tbody.querySelectorAll('.ib-status-sel').forEach(sel => {
     sel.addEventListener('change', () => ibUpdateRowPriorityStyle(sel.closest('tr'), sel.value));
+  });
+
+  // 처리구분 변경 시 브랜드 필수 표시 토글
+  tbody.querySelectorAll('[data-field="condition_type"]').forEach(sel => {
+    sel.addEventListener('change', () => {
+      const star = sel.closest('tr').querySelector('.ib-mfr-star');
+      if (star) star.style.display = sel.value === 'normal' ? '' : 'none';
+    });
   });
 
   // 상품유형 토글
@@ -850,6 +858,11 @@ function ibParseExcel(rows) {
       rowMsgs.push(`${rowNum}행 F열: ${condErr}`);
     }
 
+    if ((condition_type || 'normal') === 'normal' && !manufacturer) {
+      _errCols.add('B');
+      rowMsgs.push(`${rowNum}행 B열(브랜드)이 비어있습니다`);
+    }
+
     if (rowMsgs.length) errorLines.push(...rowMsgs);
     return {
       _row: rowNum, _errCols,
@@ -947,6 +960,7 @@ async function ibSave(items) {
 
   for (const it of items) {
     if (!it.model_name)             { toast('모델명이 비어있는 행이 있습니다.', 'error'); return; }
+    if ((it.condition_type || 'normal') === 'normal' && !it.manufacturer) { toast(`'${it.model_name}' 브랜드는 정상 처리 시 필수입니다.`, 'error'); return; }
     if (!(Number(it.quantity) > 0)) { toast(`'${it.model_name}' 수량이 올바르지 않습니다.`, 'error'); return; }
     if (Number(it.purchase_price) < 0) { toast(`'${it.model_name}' 매입가가 올바르지 않습니다.`, 'error'); return; }
   }
