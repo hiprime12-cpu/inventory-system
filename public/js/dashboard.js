@@ -7,7 +7,7 @@ let _dbFpFrom       = null;
 let _dbFpTo         = null;
 
 // ── 유틸 ─────────────────────────────────────────────────────────────────────
-const dbWon = v => (v == null ? '—' : Number(v).toLocaleString('ko-KR') + '원');
+const dbWon = v => (v == null ? '—' : Math.round(Number(v)).toLocaleString('ko-KR') + '원');
 const dbNum = v => (v == null ? '—' : Number(v).toLocaleString('ko-KR'));
 
 function dbTodayStr() {

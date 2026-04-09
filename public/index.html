@@ -1356,15 +1356,39 @@
           <div class="page-toolbar">
             <span style="font-weight:700;font-size:.95rem">🗑️ 휴지통</span>
             <div style="flex:1"></div>
-            <input id="trash-search" type="text" class="search-input" placeholder="유형, 내용, 삭제자 검색..." style="width:220px" />
+            <div style="display:flex;gap:.5rem;align-items:center;flex-wrap:wrap">
+              <input id="trash-date-from" type="date" class="ib-date-inp" style="width:130px" />
+              <span style="color:var(--gray-400)">~</span>
+              <input id="trash-date-to" type="date" class="ib-date-inp" style="width:130px" />
+              <input id="trash-search" type="text" class="search-input" placeholder="거래처, 모델명, 삭제자..." style="width:180px" />
+              <button class="btn btn-ghost btn-sm" id="btn-trash-reset">초기화</button>
+            </div>
           </div>
+
+          <!-- 유형 필터 탭 -->
+          <div class="trash-tab-bar">
+            <button class="trash-tab-btn active" data-trtype="all">전체</button>
+            <button class="trash-tab-btn" data-trtype="inbound">📦 매입</button>
+            <button class="trash-tab-btn" data-trtype="outbound">🚚 출고</button>
+            <button class="trash-tab-btn" data-trtype="return">🔄 반품</button>
+            <button class="trash-tab-btn" data-trtype="exchange">🔄 교환</button>
+            <button class="trash-tab-btn" data-trtype="vendor">🏢 거래처</button>
+            <button class="trash-tab-btn" data-trtype="user">👤 사용자</button>
+          </div>
+
           <p style="font-size:.82rem;color:var(--gray-500);margin:.25rem 0 .75rem">삭제 후 30일이 지나면 자동으로 영구 삭제됩니다.</p>
+          <div id="trash-count" style="font-size:.82rem;color:var(--gray-500);margin-bottom:.4rem"></div>
+
           <div class="table-wrap">
             <table class="tbl">
               <thead>
                 <tr>
-                  <th>유형</th><th>내용</th><th>삭제자</th>
-                  <th>삭제일시</th><th>자동삭제 예정일</th><th>액션</th>
+                  <th style="width:80px">유형</th>
+                  <th>요약</th>
+                  <th style="width:80px">삭제자</th>
+                  <th style="width:120px">삭제일시</th>
+                  <th style="width:120px">자동삭제 예정</th>
+                  <th style="width:110px">액션</th>
                 </tr>
               </thead>
               <tbody id="trash-tbody">

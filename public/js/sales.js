@@ -9,7 +9,7 @@ let _slFrom  = '';
 let _slTo    = '';
 
 // ── 유틸 ────────────────────────────────────────────────────────
-const won = v => (v == null ? '—' : Number(v).toLocaleString('ko-KR') + '원');
+const won = v => (v == null ? '—' : Math.round(Number(v)).toLocaleString('ko-KR') + '원');
 const num = v => (v == null ? '—' : Number(v).toLocaleString('ko-KR'));
 
 function todayStr() {

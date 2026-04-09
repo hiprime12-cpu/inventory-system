@@ -54,7 +54,7 @@ function invFmt(v) {
   if (v === null || v === undefined || v === '') return '-';
   const n = Number(v);
   if (isNaN(n)) return '-';
-  return n.toLocaleString('ko-KR') + '원';
+  return Math.round(n).toLocaleString('ko-KR') + '원';
 }
 function invNum(v) {
   if (v === null || v === undefined) return '-';
@@ -493,7 +493,7 @@ async function invSaveAdjustment(force = false) {
     if (err.status === 409 && err.data?.warn === 'avg_price_change') {
       const d = err.data;
       const ok = confirm(
-        `평균매입가가 ${d.old_avg.toLocaleString()}원 → ${d.new_avg.toLocaleString()}원으로 ${d.pct}% 변동됩니다.\n진행하시겠습니까?`
+        `평균매입가가 ${Math.round(d.old_avg).toLocaleString()}원 → ${Math.round(d.new_avg).toLocaleString()}원으로 ${d.pct}% 변동됩니다.\n진행하시겠습니까?`
       );
       if (ok) invSaveAdjustment(true);
     } else {
