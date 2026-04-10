@@ -166,17 +166,17 @@ function obRenderDetail(order, vendorInfo) {
     return `
       <tr>
         <td style="text-align:center">${i + 1}</td>
-        <td>${escHtml(it.category || '-')}</td>
-        <td>${escHtml(it.manufacturer)}</td>
-        <td>${escHtml(it.model_name)}</td>
-        <td>${escHtml(it.spec || '-')}</td>
-        <td><span class="ob-cond-badge ${ctCls}">${ctLabel}</span></td>
+        <td title="${escHtml(it.category || '-')}">${escHtml(it.category || '-')}</td>
+        <td title="${escHtml(it.manufacturer)}">${escHtml(it.manufacturer)}</td>
+        <td title="${escHtml(it.model_name)}">${escHtml(it.model_name)}</td>
+        <td title="${escHtml(it.spec || '-')}">${escHtml(it.spec || '-')}</td>
+        <td style="overflow:visible"><span class="ob-cond-badge ${ctCls}">${ctLabel}</span></td>
         <td style="text-align:right">${it.quantity}</td>
         <td style="text-align:right">${obFmtMoney(it.sale_price)}</td>
         <td style="text-align:right">${obFmtMoney(it.tax_amount)}</td>
         <td style="text-align:right"><b>${obFmtMoney(it.total_price)}</b></td>
         <td class="${profitCls}" style="text-align:right">${obFmtMoney(it.total_profit)}</td>
-        <td>${escHtml(it.notes || '-')}</td>
+        <td title="${escHtml(it.notes || '-')}">${escHtml(it.notes || '-')}</td>
       </tr>
     `;
   }).join('');
@@ -210,7 +210,21 @@ function obRenderDetail(order, vendorInfo) {
     </div>
 
     <div class="ib-header-card" style="margin-top:.75rem;padding:0;overflow-x:auto">
-      <table class="tbl">
+      <table class="tbl ob-detail-tbl">
+        <colgroup>
+          <col style="width:40px">
+          <col style="width:70px">
+          <col style="width:80px">
+          <col style="width:120px">
+          <col style="width:150px">
+          <col style="width:70px">
+          <col style="width:60px">
+          <col style="width:90px">
+          <col style="width:80px">
+          <col style="width:100px">
+          <col style="width:90px">
+          <col style="width:150px">
+        </colgroup>
         <thead>
           <tr>
             <th>#</th><th>구분</th><th>브랜드</th><th>모델명</th><th>스펙</th>

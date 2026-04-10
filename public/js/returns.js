@@ -236,13 +236,13 @@ function rtRenderDetail(order) {
   // 반품 품목 테이블
   const returnItemsHtml = (order.return_items || []).map(it => `
     <tr>
-      <td>${escHtml(it.category || '-')}</td>
-      <td>${escHtml(it.manufacturer)}</td>
-      <td>${escHtml(it.model_name)}</td>
-      <td>${escHtml(it.spec || '-')}</td>
+      <td title="${escHtml(it.category || '-')}">${escHtml(it.category || '-')}</td>
+      <td title="${escHtml(it.manufacturer)}">${escHtml(it.manufacturer)}</td>
+      <td title="${escHtml(it.model_name)}">${escHtml(it.model_name)}</td>
+      <td title="${escHtml(it.spec || '-')}">${escHtml(it.spec || '-')}</td>
       <td style="text-align:right">${it.quantity}</td>
       <td style="text-align:right">${it.sale_price != null && it.sale_price !== '' ? Number(it.sale_price).toLocaleString() : '-'}</td>
-      <td>${escHtml(it.notes || '-')}</td>
+      <td title="${escHtml(it.notes || '-')}">${escHtml(it.notes || '-')}</td>
     </tr>`).join('') || `<tr><td colspan="7" class="empty">품목 없음</td></tr>`;
 
   // 교환 출고 품목 테이블
@@ -250,14 +250,14 @@ function rtRenderDetail(order) {
   if (order.type === 'exchange') {
     const exItemsHtml = (order.exchange_items || []).map(it => `
       <tr>
-        <td>${escHtml(it.category || '-')}</td>
-        <td>${escHtml(it.manufacturer)}</td>
-        <td>${escHtml(it.model_name)}</td>
-        <td>${escHtml(it.spec || '-')}</td>
+        <td title="${escHtml(it.category || '-')}">${escHtml(it.category || '-')}</td>
+        <td title="${escHtml(it.manufacturer)}">${escHtml(it.manufacturer)}</td>
+        <td title="${escHtml(it.model_name)}">${escHtml(it.model_name)}</td>
+        <td title="${escHtml(it.spec || '-')}">${escHtml(it.spec || '-')}</td>
         <td style="text-align:right">${it.quantity}</td>
         <td style="text-align:right">${Number(it.sale_price).toLocaleString()}</td>
         <td style="text-align:right">${Number(it.total_price).toLocaleString()}</td>
-        <td>${escHtml(it.notes || '-')}</td>
+        <td title="${escHtml(it.notes || '-')}">${escHtml(it.notes || '-')}</td>
       </tr>`).join('') || `<tr><td colspan="8" class="empty">품목 없음</td></tr>`;
 
     const exTotal      = (order.exchange_items || []).reduce((s,i) => s + (Number(i.total_price)||0), 0);
@@ -276,7 +276,17 @@ function rtRenderDetail(order) {
       <div class="ib-header-card" style="margin-top:.75rem">
         <div class="rt-section-title">🔄 교환 출고 품목</div>
         <div class="table-wrap" style="overflow-x:auto">
-          <table class="tbl" style="min-width:760px">
+          <table class="tbl rt-detail-tbl" style="min-width:820px">
+            <colgroup>
+              <col style="width:70px">
+              <col style="width:80px">
+              <col style="width:120px">
+              <col style="width:150px">
+              <col style="width:60px">
+              <col style="width:90px">
+              <col style="width:100px">
+              <col style="width:150px">
+            </colgroup>
             <thead><tr>
               <th>구분</th><th>브랜드</th><th>모델명</th><th>스펙</th>
               <th>수량</th><th>판매가</th><th>합계</th><th>비고</th>
@@ -312,8 +322,17 @@ function rtRenderDetail(order) {
 
     <div class="ib-header-card" style="margin-top:.75rem">
       <div class="rt-section-title">📦 반품 품목</div>
-      <div class="table-wrap">
-        <table class="tbl">
+      <div class="table-wrap" style="overflow-x:auto">
+        <table class="tbl rt-detail-tbl" style="min-width:720px">
+          <colgroup>
+            <col style="width:70px">
+            <col style="width:80px">
+            <col style="width:120px">
+            <col style="width:150px">
+            <col style="width:60px">
+            <col style="width:90px">
+            <col style="width:150px">
+          </colgroup>
           <thead><tr>
             <th>구분</th><th>브랜드</th><th>모델명</th><th>스펙</th>
             <th>수량</th><th>판매가</th><th>비고</th>

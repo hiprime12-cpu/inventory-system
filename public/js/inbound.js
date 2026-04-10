@@ -210,20 +210,20 @@ function renderIbDetail(order) {
       : (it.is_smartstore ? '<span style="color:var(--success);font-size:.8rem">✅ 등록됨</span>' : '');
     return `
       <tr class="${priorityCls}">
-        <td>${escHtml(it.category || '-')}</td>
-        <td>${escHtml(it.manufacturer)}</td>
-        <td>${escHtml(it.model_name)}</td>
-        <td class="ib-td-spec">${escHtml(it.spec || '-')}</td>
+        <td title="${escHtml(it.category || '-')}">${escHtml(it.category || '-')}</td>
+        <td title="${escHtml(it.manufacturer)}">${escHtml(it.manufacturer)}</td>
+        <td title="${escHtml(it.model_name)}">${escHtml(it.model_name)}</td>
+        <td class="ib-td-spec" title="${escHtml(it.spec || '-')}">${escHtml(it.spec || '-')}</td>
         <td style="text-align:right">${Number(it.quantity).toLocaleString()}</td>
         <td class="price-col" style="text-align:right">${Number(it.purchase_price).toLocaleString()}</td>
         <td class="price-col" style="text-align:right">${Number(it.total_price).toLocaleString()}</td>
         <td><span class="ib-badge ${condCls}">${cond}</span></td>
-        <td>${statusCell}</td>
-        <td class="ib-td-notes">${escHtml(it.notes || '-')}</td>
-        <td>
+        <td style="overflow:visible">${statusCell}</td>
+        <td class="ib-td-notes" title="${escHtml(it.notes || '-')}">${escHtml(it.notes || '-')}</td>
+        <td style="overflow:visible">
           <button class="btn btn-xs btn-ghost" onclick="ibShowPriceHistory('${it.id}','${escHtml(it.model_name)}')">이력</button>
         </td>
-        <td style="white-space:nowrap">${ssCell}</td>
+        <td style="overflow:visible">${ssCell}</td>
       </tr>
     `;
   }).join('');
@@ -277,18 +277,18 @@ function renderIbDetail(order) {
     <div class="ib-detail-table-wrap">
       <table class="tbl">
         <colgroup>
+          <col style="width:70px">
           <col style="width:80px">
-          <col style="width:100px">
-          <col style="width:150px">
           <col style="width:120px">
-          <col style="width:65px">
-          <col style="width:100px">
+          <col style="width:150px">
+          <col style="width:60px">
+          <col style="width:90px">
           <col style="width:100px">
           <col style="width:70px">
-          <col style="width:100px">
-          <col style="width:200px">
-          <col style="width:55px">
-          <col style="width:160px">
+          <col style="width:110px">
+          <col style="width:150px">
+          <col style="width:60px">
+          <col style="width:150px">
         </colgroup>
         <thead>
           <tr>

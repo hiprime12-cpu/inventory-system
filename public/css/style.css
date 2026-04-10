@@ -256,16 +256,20 @@ textarea.form-control { resize: vertical; min-height: 70px; }
   border-radius: 0 0 var(--radius) var(--radius);
   box-shadow: var(--shadow);
 }
-.ib-detail-table-wrap .tbl { table-layout: fixed; min-width: 1140px; }
-.ib-td-notes {
-  white-space: normal !important;
-  word-break: break-word;
-  vertical-align: top;
+.ib-detail-table-wrap .tbl { table-layout: fixed; min-width: 1210px; }
+.ib-detail-table-wrap td {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.ib-td-spec {
-  white-space: normal; word-break: break-word;
-  font-size: .82rem; color: var(--gray-700);
-}
+.ib-td-notes { vertical-align: middle; }
+.ib-td-spec  { font-size: .82rem; color: var(--gray-700); }
+
+/* 출고 상세 테이블 */
+.ob-detail-tbl { table-layout: fixed; min-width: 1100px; }
+.ob-detail-tbl td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* 반품/교환 상세 테이블 */
+.rt-detail-tbl { table-layout: fixed; }
+.rt-detail-tbl td { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* 폼 테이블 래퍼 (직접입력 + 엑셀 미리보기) */
 .ib-form-table-wrap {
