@@ -153,7 +153,7 @@ async function trShowDetail(id) {
   overlay.querySelector('#tr-detail-delete').onclick = async () => {
     if (!confirm(`"${displayName}" 을(를) 영구 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) return;
     try {
-      await API.delete(`/trash/${id}`);
+      await API.del(`/trash/${id}`);
       toast('영구 삭제되었습니다.', 'success');
       close();
       await loadTrash();
@@ -388,7 +388,7 @@ async function trashRestore(id) {
 async function trashDelete(id, name) {
   if (!confirm(`"${name}" 을(를) 영구 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.`)) return;
   try {
-    await API.delete(`/trash/${id}`);
+    await API.del(`/trash/${id}`);
     toast('영구 삭제되었습니다.', 'success');
     await loadTrash();
   } catch (err) { toast(err.message, 'error'); }
