@@ -35,6 +35,10 @@ app.use('/api/trash',            require('./routes/trash'));
 app.use('/api/audit-log',        require('./routes/auditLog'));
 
 // 헬스체크 (Railway 배포용)
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok' });
+});
+
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
@@ -84,7 +88,7 @@ const PORT = process.env.PORT || 3000;
     // 매일 자정 자동 삭제 (한국시간 기준 KST 00:00 = UTC 15:00)
     cron.schedule('0 15 * * *', purgeExpiredTrash, { timezone: 'Asia/Seoul' });
 
-    app.listen(PORT, () => {
+    app.listen(PORT, '0.0.0.0', () => {
       console.log(`\n✅ 재고관리 서버 실행 중: http://localhost:${PORT}`);
       console.log(`   환경: ${process.env.NODE_ENV || 'development'}`);
       console.log(`   DB : ${process.env.DATABASE_URL ? 'PostgreSQL' : 'SQLite'}\n`);
