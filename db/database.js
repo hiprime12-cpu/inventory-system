@@ -1056,10 +1056,10 @@ async function initDB() {
     db = makePgAdapter(pool);
     console.log('[DB] PostgreSQL 연결 완료');
   } else {
-    // node:sqlite — Node.js v22+ 빌트인 (npm 패키지 불필요)
-    const { DatabaseSync } = require('node:sqlite');
+    // better-sqlite3 (Node.js v18+ 호환)
+    const Database = require('better-sqlite3');
     const dbPath = path.join(__dirname, '..', 'inventory.db');
-    const sqlite = new DatabaseSync(dbPath);
+    const sqlite = new Database(dbPath);
     sqlite.exec('PRAGMA journal_mode = WAL');
     sqlite.exec('PRAGMA foreign_keys = ON');
     db = makeSqliteAdapter(sqlite);
