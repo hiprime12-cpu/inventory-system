@@ -15,6 +15,20 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// 헬스체크 (Railway 배포용 — 인증 미들웨어 적용 전에 등록)
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok' });
+});
+
+app.get('/api/health', (req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    env: process.env.NODE_ENV || 'development',
+    db:  process.env.DATABASE_URL ? 'postgresql' : 'sqlite',
+    timestamp: new Date().toISOString(),
+  });
+});
+
 // 정적 파일 서빙
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -33,20 +47,6 @@ app.use('/api/company',          require('./routes/company'));
 app.use('/api/dashboard',        require('./routes/dashboard'));
 app.use('/api/trash',            require('./routes/trash'));
 app.use('/api/audit-log',        require('./routes/auditLog'));
-
-// 헬스체크 (Railway 배포용)
-app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'ok' });
-});
-
-app.get('/api/health', (req, res) => {
-  res.json({
-    status: 'ok',
-    env: process.env.NODE_ENV || 'development',
-    db:  process.env.DATABASE_URL ? 'postgresql' : 'sqlite',
-    timestamp: new Date().toISOString(),
-  });
-});
 
 // SPA 폴백 (모든 미정의 경로 → index.html)
 app.get('*', (req, res) => {
