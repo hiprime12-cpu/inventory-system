@@ -79,22 +79,19 @@ async function purgeExpiredTrash() {
 const PORT = process.env.PORT || 3000;
 
 (async () => {
+  // DB 초기화 — 실패해도 서버는 시작 (healthcheck 통과 가능)
   try {
     await initDB();
-
-    // 서버 시작 시 만료 항목 즉시 삭제
     await purgeExpiredTrash();
-
-    // 매일 자정 자동 삭제 (한국시간 기준 KST 00:00 = UTC 15:00)
     cron.schedule('0 15 * * *', purgeExpiredTrash, { timezone: 'Asia/Seoul' });
-
-    app.listen(PORT, '0.0.0.0', () => {
-      console.log(`\n✅ 재고관리 서버 실행 중: http://localhost:${PORT}`);
-      console.log(`   환경: ${process.env.NODE_ENV || 'development'}`);
-      console.log(`   DB : ${process.env.DATABASE_URL ? 'PostgreSQL' : 'SQLite'}\n`);
-    });
+    console.log('[DB] 초기화 완료');
   } catch (err) {
-    console.error('❌ 서버 시작 실패:', err);
-    process.exit(1);
+    console.error('❌ DB 초기화 오류 (서버는 계속 실행):', err.message);
   }
+
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`\n✅ 재고관리 서버 실행 중: http://localhost:${PORT}`);
+    console.log(`   환경: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`   DB : ${process.env.DATABASE_URL ? 'PostgreSQL' : 'SQLite'}\n`);
+  });
 })();
