@@ -47,21 +47,34 @@ async function getOutboundRows(db, from, to) {
      JOIN outbound_orders oo ON oi.order_id = oo.id
      LEFT JOIN (
        SELECT
-         COALESCE(ri.outbound_item_id, (
-           SELECT oi2.id FROM outbound_items oi2
-           JOIN outbound_orders oo2 ON oi2.order_id = oo2.id
-           WHERE oi2.manufacturer = ri.manufacturer
-             AND oi2.model_name   = ri.model_name
-             AND COALESCE(oi2.spec,'') = COALESCE(ri.spec,'')
-             AND oo2.vendor_name  = ro.vendor_name
-             AND oi2.is_deleted   = 0 AND oo2.is_deleted = 0
-           ORDER BY oo2.order_date DESC LIMIT 1
-         )) AS target_item_id,
+         CASE
+           WHEN ri.outbound_item_id IS NOT NULL THEN ri.outbound_item_id
+           WHEN ro.linked_outbound_id IS NOT NULL THEN (
+             SELECT oi2.id FROM outbound_items oi2
+             WHERE oi2.order_id     = ro.linked_outbound_id
+               AND oi2.manufacturer = ri.manufacturer
+               AND oi2.model_name   = ri.model_name
+               AND COALESCE(oi2.spec,'') = COALESCE(ri.spec,'')
+               AND oi2.is_deleted   = 0
+             LIMIT 1
+           )
+           ELSE (
+             SELECT oi2.id FROM outbound_items oi2
+             JOIN outbound_orders oo2 ON oi2.order_id = oo2.id
+             WHERE oi2.manufacturer = ri.manufacturer
+               AND oi2.model_name   = ri.model_name
+               AND COALESCE(oi2.spec,'') = COALESCE(ri.spec,'')
+               AND oo2.vendor_name  = ro.vendor_name
+               AND oi2.is_deleted   = 0 AND oo2.is_deleted = 0
+             ORDER BY oo2.order_date DESC LIMIT 1
+           )
+         END AS target_item_id,
          SUM(ri.quantity) AS returned_qty,
          MAX(CASE WHEN ro.type = 'exchange' THEN 1 ELSE 0 END) AS has_exchange
        FROM return_items ri
        JOIN return_orders ro ON ri.return_order_id = ro.id
        WHERE ro.is_deleted = 0
+         AND ro.status IN ('normal', 'defective', 'exchange_done')
        GROUP BY target_item_id
      ) ri_agg ON ri_agg.target_item_id = oi.id
      WHERE oi.is_deleted = 0 AND oo.is_deleted = 0

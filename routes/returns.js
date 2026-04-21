@@ -285,134 +285,171 @@ router.patch('/:id/status', auth('editor'), async (req, res) => {
 
     const n = nowStr();
 
-    // ── 재고 처리 ──────────────────────────────────────────────
-    if (status === 'normal' && oldStatus !== 'normal') {
-      // 반품 정상확정: current_stock↑ normal_returns↑
-      for (const item of order.return_items) {
-        const inv = await getInv(db, item.manufacturer, item.model_name, item.spec);
-        if (inv) {
-          await db.runAsync(
-            `UPDATE inventory
-             SET current_stock  = current_stock + ?,
-                 normal_returns = normal_returns + ?,
-                 updated_at     = ?
-             WHERE id = ?`,
-            [item.quantity, item.quantity, n, inv.id]
-          );
-        }
-      }
+    // ── 재고 처리 (트랜잭션으로 묶어 원자적으로 처리) ──────────
+    await db.transaction(async () => {
 
-    } else if (status === 'defective' && oldStatus !== 'defective') {
-      // 불량확정: condition_type='defective' 행 current_stock↑ (없으면 생성)
-      for (const item of order.return_items) {
-        const defInv = await getInv(db, item.manufacturer, item.model_name, item.spec, 'defective');
-        if (defInv) {
-          await db.runAsync(
-            `UPDATE inventory SET current_stock = current_stock + ?, updated_at = ? WHERE id = ?`,
-            [item.quantity, n, defInv.id]
-          );
-        } else {
-          const normInv = await getInv(db, item.manufacturer, item.model_name, item.spec, 'normal');
-          const specVal = (item.spec || '').toLowerCase().trim();
-          await db.runAsync(
-            `INSERT INTO inventory
-               (id, category, product_type, spec, manufacturer, model_name, condition_type,
-                current_stock, avg_purchase_price, total_inbound, total_outbound,
-                normal_returns, has_temp_purchase, updated_at)
-             VALUES (?, ?, ?, ?, ?, ?, 'defective', ?, 0, 0, 0, 0, 0, ?)`,
-            [uuidv4(), normInv?.category || null, normInv?.product_type || 'general', specVal,
-             item.manufacturer, item.model_name, item.quantity, n]
-          );
-        }
-      }
-
-    } else if (status === 'exchange_done' && oldStatus !== 'exchange_done') {
-      // 교환완료: 반품품목 current_stock↑, 교환출고품목 current_stock↓ + 출고건 자동생성
-      for (const item of order.return_items) {
-        const inv = await getInv(db, item.manufacturer, item.model_name, item.spec);
-        if (inv) {
-          await db.runAsync(
-            `UPDATE inventory
-             SET current_stock  = current_stock + ?,
-                 normal_returns = normal_returns + ?,
-                 updated_at     = ?
-             WHERE id = ?`,
-            [item.quantity, item.quantity, n, inv.id]
-          );
-        }
-      }
-
-      // 교환 출고 품목 재고 확인
-      if (order.exchange_items && order.exchange_items.length > 0) {
-        for (const item of order.exchange_items) {
+      if (status === 'normal' && oldStatus !== 'normal') {
+        // 반품 정상확정: current_stock↑ normal_returns↑
+        for (const item of order.return_items) {
           const inv = await getInv(db, item.manufacturer, item.model_name, item.spec);
-          if (!inv || inv.current_stock < item.quantity) {
-            return res.status(400).json({
-              error: `교환출고 재고 부족: ${item.manufacturer} ${item.model_name} (현재: ${inv ? inv.current_stock : 0}개)`,
-            });
+          if (inv) {
+            await db.runAsync(
+              `UPDATE inventory
+               SET current_stock  = current_stock + ?,
+                   normal_returns = normal_returns + ?,
+                   updated_at     = ?
+               WHERE id = ?`,
+              [item.quantity, item.quantity, n, inv.id]
+            );
+          } else {
+            // 재고 레코드가 없으면 신규 생성
+            console.warn(`[Returns] 정상확정 - 재고 없어 신규 생성: ${item.manufacturer} ${item.model_name}`);
+            await db.runAsync(
+              `INSERT INTO inventory
+                 (id, category, product_type, spec, manufacturer, model_name, condition_type,
+                  current_stock, avg_purchase_price, total_inbound, total_outbound,
+                  normal_returns, has_temp_purchase, updated_at)
+               VALUES (?, ?, 'general', ?, ?, ?, 'normal', ?, 0, 0, 0, ?, 0, ?)`,
+              [uuidv4(), item.category || null, (item.spec || '').toLowerCase().trim(),
+               item.manufacturer, item.model_name,
+               item.quantity, item.quantity, n]
+            );
           }
         }
 
-        // 출고건 자동 생성
-        const exOrderId = uuidv4();
-        let   exTotal   = 0;
-
-        await db.runAsync(
-          `INSERT INTO outbound_orders
-             (id, order_date, sales_vendor_id, vendor_name, tax_type, total_price, notes, exchange_return_id, created_at, created_by)
-           VALUES (?, ?, ?, ?, 'none', 0, ?, ?, ?, ?)`,
-          [exOrderId, order.received_at, order.sales_vendor_id || null, order.vendor_name || null,
-           `교환출고 (접수번호: ${order.id.slice(0,8)})`, order.id, n, req.user.id]
-        );
-
-        for (const item of order.exchange_items) {
-          const inv       = await getInv(db, item.manufacturer, item.model_name, item.spec);
-          const qty       = item.quantity;
-          const salePrice = item.sale_price || 0;
-          const avgPrice  = inv.avg_purchase_price || 0;
-          const profitUnit= salePrice - avgPrice;
-          const total     = qty * salePrice;
-          exTotal += total;
-
-          await db.runAsync(
-            `INSERT INTO outbound_items
-               (id, order_id, category, manufacturer, model_name, spec, quantity, sale_price,
-                tax_amount, total_price, avg_purchase_price, profit_per_unit, total_profit,
-                notes, created_at, created_by)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)`,
-            [uuidv4(), exOrderId, item.category || null, item.manufacturer, item.model_name,
-             item.spec || '', qty, salePrice, total, avgPrice, profitUnit, profitUnit * qty,
-             item.notes || null, n, req.user.id]
-          );
-
-          await db.runAsync(
-            `UPDATE inventory
-             SET current_stock   = current_stock - ?,
-                 total_outbound  = total_outbound + ?,
-                 updated_at      = ?
-             WHERE id = ?`,
-            [qty, qty, n, inv.id]
-          );
+      } else if (status === 'defective' && oldStatus !== 'defective') {
+        // 불량확정: condition_type='defective' 행 current_stock↑ (없으면 생성)
+        for (const item of order.return_items) {
+          const defInv = await getInv(db, item.manufacturer, item.model_name, item.spec, 'defective');
+          if (defInv) {
+            await db.runAsync(
+              `UPDATE inventory SET current_stock = current_stock + ?, updated_at = ? WHERE id = ?`,
+              [item.quantity, n, defInv.id]
+            );
+          } else {
+            const normInv = await getInv(db, item.manufacturer, item.model_name, item.spec, 'normal');
+            const specVal = (item.spec || '').toLowerCase().trim();
+            await db.runAsync(
+              `INSERT INTO inventory
+                 (id, category, product_type, spec, manufacturer, model_name, condition_type,
+                  current_stock, avg_purchase_price, total_inbound, total_outbound,
+                  normal_returns, has_temp_purchase, updated_at)
+               VALUES (?, ?, ?, ?, ?, ?, 'defective', ?, 0, 0, 0, 0, 0, ?)`,
+              [uuidv4(), normInv?.category || null, normInv?.product_type || 'general', specVal,
+               item.manufacturer, item.model_name, item.quantity, n]
+            );
+          }
         }
 
-        await db.runAsync(
-          `UPDATE outbound_orders SET total_price = ? WHERE id = ?`,
-          [exTotal, exOrderId]
-        );
-      }
-    }
+      } else if (status === 'exchange_done' && oldStatus !== 'exchange_done') {
+        // 교환완료: 반품품목 current_stock↑, 교환출고품목 current_stock↓ + 출고건 자동생성
 
-    // 상태 업데이트
-    await db.runAsync(
-      `UPDATE return_orders SET status=?, updated_at=?, updated_by=? WHERE id=?`,
-      [status, n, req.user.id, req.params.id]
-    );
+        // 교환 출고 재고 사전 검증 (트랜잭션 전에 확인)
+        if (order.exchange_items && order.exchange_items.length > 0) {
+          for (const item of order.exchange_items) {
+            const inv = await getInv(db, item.manufacturer, item.model_name, item.spec);
+            if (!inv || inv.current_stock < item.quantity) {
+              throw Object.assign(
+                new Error(`교환출고 재고 부족: ${item.manufacturer} ${item.model_name} (현재: ${inv ? inv.current_stock : 0}개)`),
+                { statusCode: 400 }
+              );
+            }
+          }
+        }
+
+        // 반품 품목 재고 증가
+        for (const item of order.return_items) {
+          const inv = await getInv(db, item.manufacturer, item.model_name, item.spec);
+          if (inv) {
+            await db.runAsync(
+              `UPDATE inventory
+               SET current_stock  = current_stock + ?,
+                   normal_returns = normal_returns + ?,
+                   updated_at     = ?
+               WHERE id = ?`,
+              [item.quantity, item.quantity, n, inv.id]
+            );
+          } else {
+            console.warn(`[Returns] 교환완료 - 반품재고 없어 신규 생성: ${item.manufacturer} ${item.model_name}`);
+            await db.runAsync(
+              `INSERT INTO inventory
+                 (id, category, product_type, spec, manufacturer, model_name, condition_type,
+                  current_stock, avg_purchase_price, total_inbound, total_outbound,
+                  normal_returns, has_temp_purchase, updated_at)
+               VALUES (?, ?, 'general', ?, ?, ?, 'normal', ?, 0, 0, 0, ?, 0, ?)`,
+              [uuidv4(), item.category || null, (item.spec || '').toLowerCase().trim(),
+               item.manufacturer, item.model_name,
+               item.quantity, item.quantity, n]
+            );
+          }
+        }
+
+        // 교환 출고 처리
+        if (order.exchange_items && order.exchange_items.length > 0) {
+          const exOrderId = uuidv4();
+          let   exTotal   = 0;
+
+          await db.runAsync(
+            `INSERT INTO outbound_orders
+               (id, order_date, sales_vendor_id, vendor_name, tax_type, total_price, notes, exchange_return_id, created_at, created_by)
+             VALUES (?, ?, ?, ?, 'none', 0, ?, ?, ?, ?)`,
+            [exOrderId, order.received_at, order.sales_vendor_id || null, order.vendor_name || null,
+             `교환출고 (접수번호: ${order.id.slice(0,8)})`, order.id, n, req.user.id]
+          );
+
+          for (const item of order.exchange_items) {
+            const inv       = await getInv(db, item.manufacturer, item.model_name, item.spec);
+            const qty       = item.quantity;
+            const salePrice = item.sale_price || 0;
+            const avgPrice  = inv.avg_purchase_price || 0;
+            const profitUnit= salePrice - avgPrice;
+            const total     = qty * salePrice;
+            exTotal += total;
+
+            await db.runAsync(
+              `INSERT INTO outbound_items
+                 (id, order_id, category, manufacturer, model_name, spec, quantity, sale_price,
+                  tax_amount, total_price, avg_purchase_price, profit_per_unit, total_profit,
+                  notes, created_at, created_by)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)`,
+              [uuidv4(), exOrderId, item.category || null, item.manufacturer, item.model_name,
+               item.spec || '', qty, salePrice, total, avgPrice, profitUnit, profitUnit * qty,
+               item.notes || null, n, req.user.id]
+            );
+
+            await db.runAsync(
+              `UPDATE inventory
+               SET current_stock   = current_stock - ?,
+                   total_outbound  = total_outbound + ?,
+                   updated_at      = ?
+               WHERE id = ?`,
+              [qty, qty, n, inv.id]
+            );
+          }
+
+          await db.runAsync(
+            `UPDATE outbound_orders SET total_price = ? WHERE id = ?`,
+            [exTotal, exOrderId]
+          );
+        }
+      }
+
+      // 상태 업데이트 (트랜잭션 내에서 함께 커밋)
+      await db.runAsync(
+        `UPDATE return_orders SET status=?, updated_at=?, updated_by=? WHERE id=?`,
+        [status, n, req.user.id, req.params.id]
+      );
+
+    }); // end transaction
 
     const updated = await fetchReturnOrder(db, req.params.id);
     await writeAuditLog('return_orders', req.params.id, 'update',
       { status: oldStatus }, { status }, req.user.id);
     res.json(updated);
-  } catch (err) { res.status(500).json({ error: err.message }); }
+  } catch (err) {
+    console.error('[Returns] 상태 변경 오류:', err.message);
+    res.status(err.statusCode || 500).json({ error: err.message });
+  }
 });
 
 // ── DELETE /api/returns/:id ──────────────────────────────────────
