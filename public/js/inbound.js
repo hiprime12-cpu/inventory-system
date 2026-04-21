@@ -576,7 +576,14 @@ async function ibSetBulkStatus(status) {
   document.querySelectorAll('.ib-bulk-btn').forEach(btn =>
     btn.classList.toggle('active', btn.dataset.status === status)
   );
+  // 직접 입력 탭 행 업데이트
   document.querySelectorAll('#ib-direct-tbody [data-field="status"]').forEach(sel => {
+    sel.value = status;
+    ibUpdateRowPriorityStyle(sel.closest('tr'), status);
+  });
+  // 엑셀 미리보기 탭 행 업데이트
+  _excelRows.forEach(r => { r.status = status; });
+  document.querySelectorAll('#ib-excel-tbody [data-field="status"]').forEach(sel => {
     sel.value = status;
     ibUpdateRowPriorityStyle(sel.closest('tr'), status);
   });
@@ -869,7 +876,7 @@ function ibParseExcel(rows) {
       category, manufacturer, model_name, product_type, spec,
       quantity, purchase_price,
       condition_type: condition_type || 'normal',
-      status: 'pending', notes,
+      status: _ibBulkStatus || 'pending', notes,
     };
   });
 
@@ -889,14 +896,19 @@ function ibParseExcel(rows) {
   const condLabel = { normal: '정상', defective: '불량', disposal: '폐기' };
 
   // 미리보기 테이블
-  document.getElementById('ib-excel-tbody').innerHTML = _excelRows.map(r => {
+  const statusLabel = { pending: '매입미완료', completed: '매입완료', priority: '우선등록' };
+  document.getElementById('ib-excel-tbody').innerHTML = _excelRows.map((r, idx) => {
     const hasErr   = r._errCols.size > 0;
-    const rowStyle = hasErr ? 'style="background:#fff0f0"' : '';
+    const rowClass = hasErr ? '' : (r.status === 'priority' ? ' class="ib-row-priority"' : '');
+    const rowStyle = hasErr ? ' style="background:#fff0f0"' : '';
     const total    = (r.quantity || 0) * (r.purchase_price || 0);
     const cellErr  = col => r._errCols.has(col)
       ? ' style="background:#ffd6d6;color:var(--danger);font-weight:700"' : '';
+    const statusOpts = ['pending', 'completed', 'priority']
+      .map(v => `<option value="${v}"${r.status === v ? ' selected' : ''}>${statusLabel[v]}</option>`)
+      .join('');
     return `
-      <tr ${rowStyle}>
+      <tr${rowClass}${rowStyle}>
         <td style="text-align:center${hasErr ? ';color:var(--danger);font-weight:700' : ''}">${r._row}</td>
         <td>${escHtml(r.category)}</td>
         <td>${escHtml(r.manufacturer) || '-'}</td>
@@ -906,6 +918,7 @@ function ibParseExcel(rows) {
         <td style="text-align:right">${hasErr ? '-' : total.toLocaleString()}</td>
         <td${cellErr('F')}>${r._errCols.has('F') ? '<span style="color:var(--danger)">오류</span>' : condLabel[r.condition_type]}</td>
         <td>${escHtml(r.spec) || '-'}</td>
+        <td><select data-field="status" data-idx="${idx}" style="font-size:.75rem;padding:2px 4px;width:100%">${statusOpts}</select></td>
         <td>${escHtml(r.notes)}</td>
       </tr>`;
   }).join('');
@@ -1130,8 +1143,21 @@ document.addEventListener('DOMContentLoaded', () => {
   // 직접 입력 저장
   document.getElementById('btn-ib-direct-save')?.addEventListener('click', () => ibSave(ibGetDirectRows()));
 
+  // 엑셀 미리보기 행별 매입상태 개별 변경
+  document.getElementById('ib-excel-tbody')?.addEventListener('change', e => {
+    if (e.target.dataset.field !== 'status') return;
+    const idx = Number(e.target.dataset.idx);
+    if (_excelRows[idx]) _excelRows[idx].status = e.target.value;
+    ibUpdateRowPriorityStyle(e.target.closest('tr'), e.target.value);
+  });
+
   // 엑셀 일괄 등록
   document.getElementById('btn-ib-excel-save')?.addEventListener('click', () => {
+    // 저장 전 select 값 → _excelRows 최종 동기화
+    document.querySelectorAll('#ib-excel-tbody [data-field="status"]').forEach(sel => {
+      const idx = Number(sel.dataset.idx);
+      if (_excelRows[idx]) _excelRows[idx].status = sel.value;
+    });
     ibSave(_excelRows.filter(r => r._errCols.size === 0));
   });
 
