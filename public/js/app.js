@@ -842,6 +842,7 @@ window.openVendorDetail = async function(id) {
     const isSales = _currentVendorType === 'sales';
     document.getElementById('vdd-title').textContent      = v.company_name;
     document.getElementById('vdd-name').textContent       = v.name    || '-';
+    document.getElementById('vdd-company').textContent    = v.company_name || '-';
     document.getElementById('vdd-biz').textContent        = fmtBizNum(v.business_number) || '-';
     document.getElementById('vdd-phone').textContent      = fmtPhone(v.phone) || '-';
     document.getElementById('vdd-reg-addr').textContent   = v.registered_address || '-';
@@ -1146,7 +1147,7 @@ async function saveVendor() {
 
   const _isPurchaseIndividual = _currentVendorType === 'purchase' &&
     (document.getElementById('v-vendor-type')?.value || 'company') === 'individual';
-  if (!company && !_isPurchaseIndividual) { toast('상호명을 입력하세요.', 'error'); return; }
+  if (!company && !_isPurchaseIndividual) { toast('상호명을 입력해주세요.', 'error'); return; }
   if (bizRaw   && bizRaw.length   !== 10)                        { toast('사업자번호는 10자리여야 합니다.', 'error'); return; }
   if (phoneRaw && (phoneRaw.length < 10 || phoneRaw.length > 11)) { toast('전화번호는 10~11자리여야 합니다.', 'error'); return; }
 

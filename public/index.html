@@ -1482,15 +1482,17 @@
         </div>
       </div>
 
-      <div class="form-row-2">
-        <div class="vdd-field">
-          <div class="vdd-label">이름</div>
-          <div class="vdd-value" id="vdd-name">-</div>
-        </div>
-        <div class="vdd-field">
-          <div class="vdd-label">사업자번호</div>
-          <div class="vdd-value" id="vdd-biz">-</div>
-        </div>
+      <div class="vdd-field">
+        <div class="vdd-label">이름</div>
+        <div class="vdd-value" id="vdd-name">-</div>
+      </div>
+      <div class="vdd-field">
+        <div class="vdd-label">상호명</div>
+        <div class="vdd-value" id="vdd-company">-</div>
+      </div>
+      <div class="vdd-field">
+        <div class="vdd-label">사업자번호</div>
+        <div class="vdd-value" id="vdd-biz">-</div>
       </div>
       <div class="form-row-2">
         <div class="vdd-field">
@@ -1593,15 +1595,13 @@
           <button type="button" id="btn-vde-star" class="v-star-btn">☆</button>
           <span class="v-star-label">중요 거래처로 표시</span>
         </div>
-        <div class="form-row-2">
-          <div class="field">
-            <label>상호명 <span class="req">*</span></label>
-            <input id="vde-company" type="text" placeholder="상호명" required />
-          </div>
-          <div class="field">
-            <label>이름</label>
-            <input id="vde-name" type="text" placeholder="대표자 이름 (선택)" />
-          </div>
+        <div class="field">
+          <label>이름</label>
+          <input id="vde-name" type="text" placeholder="대표자 이름 (선택)" />
+        </div>
+        <div class="field">
+          <label>상호명 <span class="req">*</span></label>
+          <input id="vde-company" type="text" placeholder="상호명" required />
         </div>
         <div class="form-row-2">
           <div class="field">
@@ -1755,15 +1755,13 @@
             </div>
           </div>
         </div>
-        <div class="form-row-2">
-          <div class="field">
-            <label>상호명 <span class="req">*</span></label>
-            <input id="v-company" type="text" placeholder="상호명" required />
-          </div>
-          <div class="field">
-            <label>이름 <span class="hint" id="v-name-hint" style="display:none">출고거래처 전용</span></label>
-            <input id="v-name" type="text" placeholder="대표자 이름 (선택)" />
-          </div>
+        <div class="field">
+          <label>이름 <span class="hint" id="v-name-hint" style="display:none">출고거래처 전용</span></label>
+          <input id="v-name" type="text" placeholder="대표자 이름 (선택)" />
+        </div>
+        <div class="field">
+          <label>상호명 <span class="req">*</span></label>
+          <input id="v-company" type="text" placeholder="상호명" required />
         </div>
         <div class="form-row-2">
           <div class="field">
