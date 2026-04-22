@@ -9,10 +9,10 @@ async function addToInventory(db, manufacturer, modelName, category, qty, price,
   const specVal  = (spec || '').toLowerCase().trim();
   const prodType = specVal ? 'spec' : 'general';
   const ct       = conditionType || 'normal';
-  const catVal   = (category || '').trim() || null;
+  const catVal   = (category || '').trim().toLowerCase();
 
   const inv = await db.getAsync(
-    `SELECT * FROM inventory WHERE manufacturer=? AND model_name=? AND COALESCE(spec,'')=? AND condition_type=? AND LOWER(COALESCE(category,''))=LOWER(COALESCE(?,'')`  + `)`,
+    `SELECT * FROM inventory WHERE manufacturer=? AND model_name=? AND COALESCE(spec,'')=? AND condition_type=? AND LOWER(COALESCE(category,''))=?`,
     [manufacturer, modelName, specVal, ct, catVal]
   );
 
@@ -23,7 +23,7 @@ async function addToInventory(db, manufacturer, modelName, category, qty, price,
          (id, category, product_type, spec, manufacturer, model_name, condition_type,
           current_stock, avg_purchase_price, total_inbound, total_outbound, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, ?)`,
-      [uuidv4(), category || null, prodType, specVal, manufacturer, modelName, ct,
+      [uuidv4(), catVal || null, prodType, specVal, manufacturer, modelName, ct,
        qty, initAvg, qty, n]
     );
     return { oldAvg: 0, newAvg: initAvg, pctChange: 0 };
@@ -58,9 +58,9 @@ async function addToInventory(db, manufacturer, modelName, category, qty, price,
 async function removeFromInventory(db, manufacturer, modelName, qty, price, spec = '', conditionType = 'normal', category = null) {
   const specVal = (spec || '').toLowerCase().trim();
   const ct      = conditionType || 'normal';
-  const catVal  = (category || '').trim() || null;
+  const catVal  = (category || '').trim().toLowerCase();
   const inv = await db.getAsync(
-    `SELECT * FROM inventory WHERE manufacturer=? AND model_name=? AND COALESCE(spec,'')=? AND condition_type=? AND LOWER(COALESCE(category,''))=LOWER(COALESCE(?,'')`  + `)`,
+    `SELECT * FROM inventory WHERE manufacturer=? AND model_name=? AND COALESCE(spec,'')=? AND condition_type=? AND LOWER(COALESCE(category,''))=?`,
     [manufacturer, modelName, specVal, ct, catVal]
   );
   if (!inv) return;

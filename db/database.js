@@ -683,6 +683,88 @@ async function migrateInventoryConditionType(adapter) {
   }
 }
 
+// ── InventoryCategoryKey 마이그레이션 ──────────────────────────
+// UNIQUE(manufacturer, model_name, spec, condition_type) → UNIQUE(+category)
+// SSD / NVMe / M.2를 category별 별도 행으로 관리
+async function migrateInventoryCategoryKey(adapter) {
+  try {
+    if (adapter._isPg) {
+      // 기존 category 값 소문자 정규화
+      await adapter.runAsync(
+        `UPDATE inventory SET category = LOWER(TRIM(COALESCE(category,''))) WHERE category IS DISTINCT FROM LOWER(TRIM(COALESCE(category,'')))`
+      );
+      // 기존 unique 인덱스 제거 후 category 포함 재생성
+      await adapter.runAsync(`DROP INDEX IF EXISTS idx_inventory_model`);
+      await adapter.runAsync(`
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_inventory_model
+        ON inventory(manufacturer, model_name, LOWER(COALESCE(spec,'')), condition_type, LOWER(COALESCE(category,'')))
+      `);
+      console.log('[Migration] inventory category key 완료 (PG)');
+    } else {
+      // category가 unique 인덱스에 포함되어 있는지 확인
+      const indexes = adapter.sqlite.prepare(`PRAGMA index_list(inventory)`).all();
+      let hasCategoryInUnique = false;
+      for (const idx of indexes) {
+        if (idx.unique) {
+          const info = adapter.sqlite.prepare(`PRAGMA index_info("${idx.name}")`).all();
+          if (info.some(col => col.name === 'category')) { hasCategoryInUnique = true; break; }
+        }
+      }
+      if (hasCategoryInUnique) {
+        console.log('[Migration] inventory category key: 이미 마이그레이션됨 — 스킵');
+        return;
+      }
+
+      console.log('[Migration] inventory category key: UNIQUE에 category 추가');
+      adapter.sqlite.exec(`
+        CREATE TABLE IF NOT EXISTS inventory_v4 (
+          id                  TEXT PRIMARY KEY,
+          category            TEXT NOT NULL DEFAULT '',
+          product_type        TEXT NOT NULL DEFAULT 'general',
+          spec                TEXT NOT NULL DEFAULT '',
+          manufacturer        TEXT NOT NULL,
+          model_name          TEXT NOT NULL,
+          condition_type      TEXT NOT NULL DEFAULT 'normal'
+                                CHECK (condition_type IN ('normal','defective','disposal')),
+          current_stock       INTEGER NOT NULL DEFAULT 0,
+          avg_purchase_price  REAL NOT NULL DEFAULT 0,
+          total_inbound       INTEGER NOT NULL DEFAULT 0,
+          total_outbound      INTEGER NOT NULL DEFAULT 0,
+          normal_returns      INTEGER NOT NULL DEFAULT 0,
+          has_temp_purchase   INTEGER NOT NULL DEFAULT 0,
+          last_vendor_id      TEXT,
+          notes               TEXT,
+          updated_at          TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+          UNIQUE(manufacturer, model_name, spec, condition_type, category)
+        )
+      `);
+      adapter.sqlite.exec(`
+        INSERT OR IGNORE INTO inventory_v4
+          (id, category, product_type, spec, manufacturer, model_name, condition_type,
+           current_stock, avg_purchase_price, total_inbound, total_outbound,
+           normal_returns, has_temp_purchase, last_vendor_id, notes, updated_at)
+        SELECT id,
+          LOWER(TRIM(COALESCE(category,''))),
+          COALESCE(product_type,'general'),
+          COALESCE(spec,''),
+          manufacturer, model_name, COALESCE(condition_type,'normal'),
+          COALESCE(current_stock,0), COALESCE(avg_purchase_price,0),
+          COALESCE(total_inbound,0), COALESCE(total_outbound,0),
+          COALESCE(normal_returns,0), COALESCE(has_temp_purchase,0),
+          last_vendor_id, notes, COALESCE(updated_at, CURRENT_TIMESTAMP)
+        FROM inventory
+      `);
+      adapter.sqlite.exec('DROP TABLE inventory');
+      adapter.sqlite.exec('ALTER TABLE inventory_v4 RENAME TO inventory');
+      adapter.sqlite.exec('CREATE INDEX IF NOT EXISTS idx_inventory_model ON inventory(manufacturer, model_name, spec, condition_type)');
+      adapter.sqlite.exec('CREATE INDEX IF NOT EXISTS idx_inventory_cond  ON inventory(manufacturer, model_name, spec, condition_type, category)');
+      console.log('[Migration] inventory category key 완료 (SQLite)');
+    }
+  } catch (err) {
+    console.error('[Migration] migrateInventoryCategoryKey:', err.message);
+  }
+}
+
 // ── ConditionTypeCols 마이그레이션 (outbound_items, avg_price_history 컬럼 추가) ─
 async function migrateConditionTypeCols(adapter) {
   const cols = [
@@ -1079,6 +1161,7 @@ async function initDB() {
   await migrateReturnItemsSalePrice(db);
   await migrateOutboundPaymentStatus(db);
   await migrateInventoryConditionType(db);
+  await migrateInventoryCategoryKey(db);
   await migrateConditionTypeCols(db);
   await migrateUsersUsername(db);
   await migratePurchaseVendorType(db);
