@@ -12,6 +12,7 @@ let _ibFpStart      = null;        // 검색 시작일 flatpickr
 let _ibFpEnd        = null;        // 검색 종료일 flatpickr
 let _ibSearchTimer  = null;        // 디바운스 타이머
 let _excelRows      = [];          // 파싱된 엑셀 행
+let _excelBatchCount = 0;          // 엑셀 업로드 배치 카운터
 let _directRowCount = 5;           // 직접입력 행 수
 let _ibActiveTab    = 'all';       // 목록 탭: 'all'|'completed'|'pending'|'priority'
 let _ibBulkStatus   = 'pending';   // 폼 상단 매입상태 버튼 상태
@@ -548,6 +549,7 @@ function ibShowForm(mode, order) {
   document.getElementById('ib-excel-filename').textContent = '';
   document.getElementById('ib-excel-file').value = '';
   _excelRows = [];
+  _excelBatchCount = 0;
 
   ibShowSubpage('form');
 }
@@ -791,19 +793,52 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('ib-excel-file')?.addEventListener('change', function () {
     const file = this.files?.[0];
     if (!file) return;
-    document.getElementById('ib-excel-filename').textContent = file.name;
-    const reader = new FileReader();
-    reader.onload = e => {
-      try {
-        const wb   = XLSX.read(e.target.result, { type: 'array' });
-        const ws   = wb.Sheets[wb.SheetNames[0]];
-        const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
-        ibParseExcel(data.slice(1).filter(r => r.some(c => String(c).trim())));
-      } catch (err) { toast('엑셀 파일 파싱 실패: ' + err.message, 'error'); }
-    };
-    reader.readAsArrayBuffer(file);
+    this.value = ''; // 동일 파일 재선택 허용
+    if (_excelRows.length > 0) {
+      ibShowUploadModeModal(file);
+    } else {
+      ibLoadExcelFile(file, false);
+    }
   });
 });
+
+function ibShowUploadModeModal(file) {
+  const modal = document.getElementById('modal-excel-upload-mode');
+  if (!modal) { ibLoadExcelFile(file, false); return; }
+
+  const desc = document.getElementById('excel-mode-desc');
+  if (desc) desc.textContent = `현재 ${_excelRows.length}개 품목이 입력되어 있습니다.\n어떻게 하시겠습니까?`;
+
+  modal.classList.remove('hidden');
+
+  function cleanup() {
+    modal.classList.add('hidden');
+    document.getElementById('btn-excel-mode-replace')?.removeEventListener('click', onReplace);
+    document.getElementById('btn-excel-mode-append')?.removeEventListener('click', onAppend);
+    document.querySelectorAll('.btn-excel-mode-cancel').forEach(b => b.removeEventListener('click', onCancel));
+  }
+  function onReplace() { cleanup(); ibLoadExcelFile(file, false); }
+  function onAppend()  { cleanup(); ibLoadExcelFile(file, true); }
+  function onCancel()  { cleanup(); }
+
+  document.getElementById('btn-excel-mode-replace')?.addEventListener('click', onReplace);
+  document.getElementById('btn-excel-mode-append')?.addEventListener('click', onAppend);
+  document.querySelectorAll('.btn-excel-mode-cancel').forEach(b => b.addEventListener('click', onCancel));
+}
+
+function ibLoadExcelFile(file, appendMode) {
+  document.getElementById('ib-excel-filename').textContent = file.name;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb   = XLSX.read(e.target.result, { type: 'array' });
+      const ws   = wb.Sheets[wb.SheetNames[0]];
+      const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+      ibParseExcel(data.slice(1).filter(r => r.some(c => String(c).trim())), appendMode);
+    } catch (err) { toast('엑셀 파일 파싱 실패: ' + err.message, 'error'); }
+  };
+  reader.readAsArrayBuffer(file);
+}
 
 // 처리구분 문자열 → condition_type 변환 (대소문자 무관)
 function ibParseConditionType(raw) {
@@ -814,10 +849,17 @@ function ibParseConditionType(raw) {
   return { val: null, err: '처리구분은 빈칸/불량/폐기만 입력 가능합니다.' };
 }
 
-function ibParseExcel(rows) {
+function ibParseExcel(rows, appendMode = false) {
   // A:구분 B:브랜드 C:모델명 D:수량 E:매입가 F:처리구분 G:스펙 H:비고
-  const errorLines = [];
-  _excelRows = rows.map((r, idx) => {
+  if (!appendMode) {
+    _excelBatchCount = 0;
+  } else {
+    _excelBatchCount++;
+  }
+  const currentBatch = _excelBatchCount;
+  const batchPrefix  = currentBatch > 0 ? `[${currentBatch}차] ` : '';
+
+  const newRows = rows.map((r, idx) => {
     const rowNum       = idx + 2;
     const category     = String(r[0] ?? '').trim();
     const manufacturer = String(r[1] ?? '').trim();
@@ -836,7 +878,7 @@ function ibParseExcel(rows) {
 
     if (!model_name) {
       _errCols.add('C');
-      rowMsgs.push(`${rowNum}행 C열(모델명)이 비어있습니다`);
+      rowMsgs.push(`${batchPrefix}${rowNum}행 C열(모델명)이 비어있습니다`);
     }
 
     const quantity = Number(quantityRaw);
@@ -844,8 +886,8 @@ function ibParseExcel(rows) {
       _errCols.add('D');
       rowMsgs.push(
         !quantityRaw
-          ? `${rowNum}행 D열(수량)이 비어있습니다`
-          : `${rowNum}행 D열(수량)에 숫자가 아닌 값이 있습니다`
+          ? `${batchPrefix}${rowNum}행 D열(수량)이 비어있습니다`
+          : `${batchPrefix}${rowNum}행 D열(수량)에 숫자가 아닌 값이 있습니다`
       );
     }
 
@@ -854,25 +896,24 @@ function ibParseExcel(rows) {
       _errCols.add('E');
       rowMsgs.push(
         priceRaw === ''
-          ? `${rowNum}행 E열(매입가)이 비어있습니다`
-          : `${rowNum}행 E열(매입가)에 올바르지 않은 값이 있습니다`
+          ? `${batchPrefix}${rowNum}행 E열(매입가)이 비어있습니다`
+          : `${batchPrefix}${rowNum}행 E열(매입가)에 올바르지 않은 값이 있습니다`
       );
     }
 
     const { val: condition_type, err: condErr } = ibParseConditionType(condRaw);
     if (condErr) {
       _errCols.add('F');
-      rowMsgs.push(`${rowNum}행 F열: ${condErr}`);
+      rowMsgs.push(`${batchPrefix}${rowNum}행 F열: ${condErr}`);
     }
 
     if ((condition_type || 'normal') === 'normal' && !manufacturer) {
       _errCols.add('B');
-      rowMsgs.push(`${rowNum}행 B열(브랜드)이 비어있습니다`);
+      rowMsgs.push(`${batchPrefix}${rowNum}행 B열(브랜드)이 비어있습니다`);
     }
 
-    if (rowMsgs.length) errorLines.push(...rowMsgs);
     return {
-      _row: rowNum, _errCols,
+      _row: rowNum, _errCols, _errMsgs: rowMsgs, _batch: currentBatch,
       category, manufacturer, model_name, product_type, spec,
       quantity, purchase_price,
       condition_type: condition_type || 'normal',
@@ -880,7 +921,20 @@ function ibParseExcel(rows) {
     };
   });
 
-  // 오류 표시 바
+  if (appendMode) {
+    _excelRows = [..._excelRows, ...newRows];
+  } else {
+    _excelRows = newRows;
+  }
+
+  ibRenderExcelPreview();
+}
+
+function ibRenderExcelPreview() {
+  // 오류 수집 (전체 _excelRows에서)
+  const errorLines = [];
+  _excelRows.forEach(r => { if (r._errMsgs?.length) errorLines.push(...r._errMsgs); });
+
   const errBar   = document.getElementById('ib-excel-error-bar');
   const errCount = _excelRows.filter(r => r._errCols.size > 0).length;
   if (errorLines.length) {
@@ -893,11 +947,11 @@ function ibParseExcel(rows) {
     errBar.classList.add('hidden');
   }
 
-  const condLabel = { normal: '정상', defective: '불량', disposal: '폐기' };
-
-  // 미리보기 테이블
+  const condLabel   = { normal: '정상', defective: '불량', disposal: '폐기' };
   const statusLabel = { pending: '매입미완료', completed: '매입완료', priority: '우선등록' };
-  document.getElementById('ib-excel-tbody').innerHTML = _excelRows.map((r, idx) => {
+
+  let prevBatch = -1;
+  const rowHtml = _excelRows.flatMap((r, idx) => {
     const hasErr   = r._errCols.size > 0;
     const rowClass = hasErr ? '' : (r.status === 'priority' ? ' class="ib-row-priority"' : '');
     const rowStyle = hasErr ? ' style="background:#fff0f0"' : '';
@@ -907,9 +961,18 @@ function ibParseExcel(rows) {
     const statusOpts = ['pending', 'completed', 'priority']
       .map(v => `<option value="${v}"${r.status === v ? ' selected' : ''}>${statusLabel[v]}</option>`)
       .join('');
-    return `
+
+    const parts = [];
+
+    // 추가 업로드 배치 구분선
+    if (r._batch > 0 && r._batch !== prevBatch) {
+      parts.push(`<tr class="ib-excel-batch-sep"><td colspan="11" style="text-align:center;padding:.35rem;background:var(--gray-100,#f3f4f6);color:var(--gray-500,#6b7280);font-size:.78rem;border-top:2px solid var(--primary,#4f6ef7)">── 추가 업로드 (${r._batch}차) ──</td></tr>`);
+    }
+    prevBatch = r._batch;
+
+    parts.push(`
       <tr${rowClass}${rowStyle}>
-        <td style="text-align:center${hasErr ? ';color:var(--danger);font-weight:700' : ''}">${r._row}</td>
+        <td style="text-align:center${hasErr ? ';color:var(--danger);font-weight:700' : ''}">📎 ${r._row}</td>
         <td>${escHtml(r.category)}</td>
         <td>${escHtml(r.manufacturer) || '-'}</td>
         <td${cellErr('C')}>${escHtml(r.model_name)   || '<span style="color:var(--danger)">비어있음</span>'}</td>
@@ -920,15 +983,17 @@ function ibParseExcel(rows) {
         <td>${escHtml(r.spec) || '-'}</td>
         <td><select data-field="status" data-idx="${idx}" style="font-size:.75rem;padding:2px 4px;width:100%">${statusOpts}</select></td>
         <td>${escHtml(r.notes)}</td>
-      </tr>`;
-  }).join('');
+      </tr>`);
+    return parts;
+  });
+
+  document.getElementById('ib-excel-tbody').innerHTML = rowHtml.join('');
 
   document.getElementById('btn-ib-excel-save').disabled = _excelRows.some(r => r._errCols.size > 0);
   const total = _excelRows.reduce((s, r) => s + (r._errCols.size > 0 ? 0 : r.quantity * r.purchase_price), 0);
   document.getElementById('ib-excel-total').textContent = `${_excelRows.length}개 품목 / 합계 ${total.toLocaleString()}원`;
   document.getElementById('ib-excel-preview').classList.remove('hidden');
 
-  // 엑셀 미리보기 테이블 듀얼 스크롤 초기화
   ibInitDualScroll(
     document.querySelector('#ib-excel-preview .table-wrap'),
     document.querySelector('#ib-excel-tbl-scroll-top')
@@ -1130,13 +1195,15 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.key === 'Enter') document.getElementById('btn-ib-set-rows').click();
   });
 
-  // 상단 저장 버튼 (탭에 관계없이 활성 탭 저장)
+  // 상단 저장 버튼 — 직접입력 + 엑셀 통합 저장
   document.getElementById('btn-ib-save-top')?.addEventListener('click', () => {
-    const isExcel = !document.getElementById('ib-tab-excel').classList.contains('hidden');
+    const isExcel     = !document.getElementById('ib-tab-excel').classList.contains('hidden');
+    const directItems = ibGetDirectRows();
+    const excelItems  = _excelRows.filter(r => r._errCols.size === 0);
     if (isExcel) {
-      ibSave(_excelRows.filter(r => r._errCols.size === 0));
+      ibSave([...excelItems, ...directItems]);
     } else {
-      ibSave(ibGetDirectRows());
+      ibSave([...directItems, ...excelItems]);
     }
   });
 

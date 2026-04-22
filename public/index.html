@@ -1926,6 +1926,34 @@
   </div>
 </div>
 
+<!-- ══ 엑셀 업로드 방식 선택 모달 ════════════════════════════════ -->
+<div id="modal-excel-upload-mode" class="modal-overlay hidden">
+  <div class="modal modal-sm">
+    <div class="modal-hd">
+      <h3>업로드 방식 선택</h3>
+      <button class="btn-close btn-excel-mode-cancel">✕</button>
+    </div>
+    <div class="modal-bd">
+      <p id="excel-mode-desc" style="margin-bottom:1.2rem;color:var(--gray-700);font-size:.9rem;white-space:pre-line"></p>
+      <div style="display:flex;flex-direction:column;gap:.75rem">
+        <button id="btn-excel-mode-replace" type="button"
+          style="text-align:left;padding:.75rem 1rem;border:1.5px solid var(--gray-300);border-radius:8px;background:#fff;cursor:pointer;width:100%">
+          <div style="font-weight:600;font-size:.92rem">새로 업로드</div>
+          <div style="font-size:.8rem;color:var(--gray-500);margin-top:.2rem">기존 내용 삭제 후 새로 업로드</div>
+        </button>
+        <button id="btn-excel-mode-append" type="button"
+          style="text-align:left;padding:.75rem 1rem;border:1.5px solid var(--primary,#4f6ef7);border-radius:8px;background:var(--primary-50,#eef1ff);cursor:pointer;width:100%">
+          <div style="font-weight:600;font-size:.92rem;color:var(--primary,#4f6ef7)">추가 업로드</div>
+          <div style="font-size:.8rem;color:var(--gray-500);margin-top:.2rem">기존 내용 유지 후 추가</div>
+        </button>
+      </div>
+    </div>
+    <div class="modal-ft">
+      <button class="btn btn-ghost btn-excel-mode-cancel" type="button">취소</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ 출고 신규거래처 등록 모달 ════════════════════════════════ -->
 <div id="modal-ob-new-vendor" class="modal-overlay hidden">
   <div class="modal modal-sm">
