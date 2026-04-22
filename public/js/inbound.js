@@ -1095,6 +1095,87 @@ async function ibSave(items) {
   } catch (err) { toast(err.message, 'error'); }
 }
 
+// ── 상세 엑셀 다운로드 ───────────────────────
+function ibExportDetailExcel() {
+  if (!_currentOrder) return;
+  const order = _currentOrder;
+
+  const condLabel   = { normal: '정상', defective: '불량', disposal: '폐기' };
+  const statusLabel = { pending: '매입미완료', completed: '매입완료', priority: '우선등록' };
+
+  const headers = [
+    '입고날짜', '거래처', '매입상태',
+    '구분', '브랜드', '모델명', '스펙',
+    '상태', '수량', '매입가', '합계',
+    '처리구분', '비고', '등록자', '등록일시',
+  ];
+
+  const items = order.items || [];
+  const dataRows = items.map(it => [
+    order.order_date || '',
+    order.vendor_name || '',
+    statusLabel[it.status] || it.status || '',
+    it.category || '',
+    it.manufacturer || '',
+    it.model_name || '',
+    it.spec || '',
+    condLabel[it.condition_type] || '정상',
+    it.quantity,
+    it.purchase_price,
+    it.total_price,
+    condLabel[it.condition_type] || '정상',
+    it.notes || '',
+    order.created_by_name || '',
+    (order.created_at || '').replace('T', ' ').slice(0, 19),
+  ]);
+
+  const totalQty   = items.reduce((s, i) => s + (i.quantity || 0), 0);
+  const totalPrice = items.reduce((s, i) => s + (i.total_price || 0), 0);
+  const totalsRow  = ['합계', '', '', '', '', '', '', '', totalQty, '', totalPrice, '', '', '', ''];
+
+  const aoa = [headers, ...dataRows, totalsRow];
+  const ws  = XLSX.utils.aoa_to_sheet(aoa);
+
+  // 헤더 스타일: 파란색 배경, 흰색 굵은 텍스트
+  const headerStyle = {
+    fill: { patternType: 'solid', fgColor: { rgb: '3B5BDB' } },
+    font: { bold: true, color: { rgb: 'FFFFFF' } },
+    alignment: { horizontal: 'center' },
+  };
+  // 합계행 스타일
+  const totalStyle  = {
+    fill: { patternType: 'solid', fgColor: { rgb: 'EEF2FF' } },
+    font: { bold: true },
+  };
+
+  const COL_LETTERS = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O'];
+  const lastRow = aoa.length; // 합계행 (1-indexed)
+
+  COL_LETTERS.forEach(c => {
+    if (ws[c + '1']) ws[c + '1'].s = headerStyle;
+    const tc = ws[c + lastRow];
+    if (tc) tc.s = totalStyle;
+  });
+
+  // 수량(I), 매입가(J), 합계(K) 숫자 포맷
+  const numFmt = '#,##0';
+  for (let r = 2; r <= lastRow; r++) {
+    ['I','J','K'].forEach(c => {
+      const cell = ws[c + r];
+      if (cell && typeof cell.v === 'number') cell.z = numFmt;
+    });
+  }
+
+  // 열 너비
+  ws['!cols'] = [12, 16, 12, 10, 12, 18, 16, 8, 8, 12, 12, 8, 22, 12, 20].map(w => ({ wch: w }));
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '매입내역');
+
+  const safeName = (order.vendor_name || '미지정').replace(/[\\/:*?"<>|]/g, '_');
+  XLSX.writeFile(wb, `${safeName}_${order.order_date || 'unknown'}.xlsx`);
+}
+
 // ── 삭제 ────────────────────────────────────
 async function ibDeleteOrder() {
   if (!_currentOrder) return;
@@ -1178,6 +1259,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (_currentOrder) ibShowForm('edit', _currentOrder);
   });
   document.getElementById('btn-ib-delete')?.addEventListener('click', ibDeleteOrder);
+  document.getElementById('btn-ib-excel-dl')?.addEventListener('click', ibExportDetailExcel);
 
   // 폼 뒤로
   document.getElementById('btn-ib-back-form')?.addEventListener('click', () => {
