@@ -794,20 +794,43 @@ document.addEventListener('DOMContentLoaded', () => {
     const file = this.files?.[0];
     if (!file) return;
     this.value = ''; // 동일 파일 재선택 허용
-    if (_excelRows.length > 0) {
-      ibShowUploadModeModal(file);
+
+    if (_editOrderId) {
+      // ── 수정 페이지: 기존 품목 수 확인 후 항상 팝업 표시
+      const directCount   = ibGetDirectRows().length;
+      const existingCount = _excelRows.length + directCount;
+      if (existingCount > 0) {
+        ibShowUploadModeModal(file, {
+          existingCount,
+          onReplace: () => {
+            // 직접입력 행 초기화 + 엑셀 rows 교체
+            _directRowCount = 5;
+            ibRenderDirectTable([]);
+            ibLoadExcelFile(file, false);
+          },
+          onAppend: () => ibLoadExcelFile(file, true),
+        });
+      } else {
+        ibLoadExcelFile(file, false);
+      }
     } else {
-      ibLoadExcelFile(file, false);
+      // ── 등록 페이지: 기존 엑셀 행 있을 때만 팝업 (기존 동작 유지)
+      if (_excelRows.length > 0) {
+        ibShowUploadModeModal(file);
+      } else {
+        ibLoadExcelFile(file, false);
+      }
     }
   });
 });
 
-function ibShowUploadModeModal(file) {
+function ibShowUploadModeModal(file, opts = {}) {
   const modal = document.getElementById('modal-excel-upload-mode');
   if (!modal) { ibLoadExcelFile(file, false); return; }
 
+  const existingCount = opts.existingCount ?? _excelRows.length;
   const desc = document.getElementById('excel-mode-desc');
-  if (desc) desc.textContent = `현재 ${_excelRows.length}개 품목이 입력되어 있습니다.\n어떻게 하시겠습니까?`;
+  if (desc) desc.textContent = `현재 ${existingCount}개 품목이 입력되어 있습니다.\n어떻게 하시겠습니까?`;
 
   modal.classList.remove('hidden');
 
@@ -817,8 +840,8 @@ function ibShowUploadModeModal(file) {
     document.getElementById('btn-excel-mode-append')?.removeEventListener('click', onAppend);
     document.querySelectorAll('.btn-excel-mode-cancel').forEach(b => b.removeEventListener('click', onCancel));
   }
-  function onReplace() { cleanup(); ibLoadExcelFile(file, false); }
-  function onAppend()  { cleanup(); ibLoadExcelFile(file, true); }
+  function onReplace() { cleanup(); (opts.onReplace ?? (() => ibLoadExcelFile(file, false)))(); }
+  function onAppend()  { cleanup(); (opts.onAppend  ?? (() => ibLoadExcelFile(file, true)))();  }
   function onCancel()  { cleanup(); }
 
   document.getElementById('btn-excel-mode-replace')?.addEventListener('click', onReplace);
