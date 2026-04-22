@@ -17,7 +17,7 @@ let _adjFp         = null; // 조정일자 flatpickr
 const IB_STATUS_LABEL = { pending:'매입미완료', completed:'매입완료', priority:'우선등록' };
 
 // ── 구분 순서 / 색상 ─────────────────────────────────────────────
-const INV_CAT_ORDER  = ['CPU', 'RAM', 'VGA', 'SSD', 'NVMe', 'M.2', 'HDD', 'MB', '노트북'];
+const INV_CAT_ORDER  = ['CPU', 'RAM', 'VGA', 'SSD', 'NVMe', 'M.2', 'HDD', 'MB', '노트북', '모니터', '본체', 'PW'];
 const INV_CAT_COLORS = {
   'CPU':   { bg: '#e0f6ff', color: '#0369a1' },
   'RAM':   { bg: '#d1fae5', color: '#047857' },
@@ -28,6 +28,9 @@ const INV_CAT_COLORS = {
   'HDD':   { bg: '#fef9c3', color: '#92400e' },
   'MB':    { bg: '#fee2e2', color: '#dc2626' },
   '노트북': { bg: '#ecfdf5', color: '#047857' },
+  '모니터': { bg: '#cffafe', color: '#0e7490' },
+  '본체':  { bg: '#e0e7ff', color: '#4338ca' },
+  'PW':    { bg: '#ecfccb', color: '#4d7c0f' },
 };
 
 // 구분값 대소문자 정규화 (ram→RAM, nvme→NVMe 등)
@@ -35,6 +38,7 @@ const INV_CAT_NORMALIZE = {
   'cpu': 'CPU', 'ram': 'RAM', 'vga': 'VGA',
   'ssd': 'SSD', 'nvme': 'NVMe', 'm.2': 'M.2',
   'hdd': 'HDD', 'mb': 'MB', '노트북': '노트북',
+  '모니터': '모니터', '본체': '본체', 'pw': 'PW',
 };
 function invNormCat(cat) {
   return INV_CAT_NORMALIZE[(cat || '').toLowerCase()] || (cat || '');
