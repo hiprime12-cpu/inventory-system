@@ -678,7 +678,7 @@ function renderVendorTable(list) {
     : list;
 
   if (!sorted.length) {
-    const colspan = isSales ? '11' : '10';
+    const colspan = isSales ? '14' : '10';
     tbody.innerHTML = `<tr><td colspan="${colspan}" class="empty">등록된 거래처가 없습니다.</td></tr>`;
     return;
   }
@@ -728,6 +728,9 @@ function renderVendorTable(list) {
         <td class="cell-addr" title="${escHtml(v.registered_address || '')}">${escHtml(truncate(v.registered_address))}</td>
         <td class="cell-notes" title="${escHtml(v.notes || '')}">${escHtml(truncate(v.notes))}</td>
         ${sLicCell}
+        <td>${escHtml(v.bank_name || '-')}</td>
+        <td>${v.account_number ? fmtAccountNumber(v.account_number) : '-'}</td>
+        <td>${escHtml(v.account_holder || '-')}</td>
         <td>${escHtml(v.created_by_name || '-')}</td>
         <td class="cell-date">${fmtDateTime(v.created_at)}</td>
         <td>${escHtml(v.updated_by_name || '-')}</td>
