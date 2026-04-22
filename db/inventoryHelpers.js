@@ -9,10 +9,11 @@ async function addToInventory(db, manufacturer, modelName, category, qty, price,
   const specVal  = (spec || '').toLowerCase().trim();
   const prodType = specVal ? 'spec' : 'general';
   const ct       = conditionType || 'normal';
+  const catVal   = (category || '').trim() || null;
 
   const inv = await db.getAsync(
-    `SELECT * FROM inventory WHERE manufacturer=? AND model_name=? AND COALESCE(spec,'')=? AND condition_type=?`,
-    [manufacturer, modelName, specVal, ct]
+    `SELECT * FROM inventory WHERE manufacturer=? AND model_name=? AND COALESCE(spec,'')=? AND condition_type=? AND LOWER(COALESCE(category,''))=LOWER(COALESCE(?,'')`  + `)`,
+    [manufacturer, modelName, specVal, ct, catVal]
   );
 
   if (!inv) {
@@ -54,12 +55,13 @@ async function addToInventory(db, manufacturer, modelName, category, qty, price,
 }
 
 /** 재고 차감 + 이동평균 역산. 재고 0 미만은 0으로 처리 */
-async function removeFromInventory(db, manufacturer, modelName, qty, price, spec = '', conditionType = 'normal') {
+async function removeFromInventory(db, manufacturer, modelName, qty, price, spec = '', conditionType = 'normal', category = null) {
   const specVal = (spec || '').toLowerCase().trim();
   const ct      = conditionType || 'normal';
+  const catVal  = (category || '').trim() || null;
   const inv = await db.getAsync(
-    `SELECT * FROM inventory WHERE manufacturer=? AND model_name=? AND COALESCE(spec,'')=? AND condition_type=?`,
-    [manufacturer, modelName, specVal, ct]
+    `SELECT * FROM inventory WHERE manufacturer=? AND model_name=? AND COALESCE(spec,'')=? AND condition_type=? AND LOWER(COALESCE(category,''))=LOWER(COALESCE(?,'')`  + `)`,
+    [manufacturer, modelName, specVal, ct, catVal]
   );
   if (!inv) return;
 

@@ -40,12 +40,11 @@ function invNormCat(cat) {
   return INV_CAT_NORMALIZE[(cat || '').toLowerCase()] || (cat || '');
 }
 
-// 구분 카드 필터 매칭 (SSD 클릭 시 NVMe·M.2도 포함)
+// 구분 카드 필터 매칭
 function invMatchesCatFilter(category) {
   if (_invCatFilter === 'all') return true;
   const norm = invNormCat(category || '');
   if (_invCatFilter === '기타') return !INV_CAT_ORDER.includes(norm);
-  if (_invCatFilter === 'SSD')  return norm === 'SSD' || norm === 'NVMe' || norm === 'M.2';
   return norm === _invCatFilter;
 }
 
@@ -167,11 +166,9 @@ function invUpdateCatCounts() {
   const idMap = { 'M.2': 'M2', '노트북': '노트북' };
   const keys  = ['all', ...INV_CAT_ORDER, '기타'];
 
-  // SSD 카드는 NVMe·M.2도 포함하므로 별도 매칭 함수 사용
   const catMatchCount = (items, cat, getCategory) => {
     if (cat === 'all')  return items.length;
     if (cat === '기타') return items.filter(r => !INV_CAT_ORDER.includes(invNormCat(getCategory(r)))).length;
-    if (cat === 'SSD')  return items.filter(r => { const n = invNormCat(getCategory(r)); return n === 'SSD' || n === 'NVMe' || n === 'M.2'; }).length;
     return items.filter(r => invNormCat(getCategory(r)) === cat).length;
   };
 

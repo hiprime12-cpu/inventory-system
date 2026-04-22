@@ -146,14 +146,14 @@ router.put('/items/:itemId/status', auth('editor'), async (req, res) => {
         const specVal = (item.spec || '').toLowerCase().trim();
         const condType = item.condition_type || 'normal';
         await db.runAsync(
-          `UPDATE inventory SET notes=?, updated_at=? WHERE manufacturer=? AND model_name=? AND COALESCE(spec,'')=? AND condition_type=?`,
-          [item.notes.trim(), n, item.manufacturer, item.model_name, specVal, condType]
+          `UPDATE inventory SET notes=?, updated_at=? WHERE manufacturer=? AND model_name=? AND COALESCE(spec,'')=? AND condition_type=? AND LOWER(COALESCE(category,''))=LOWER(COALESCE(?,'')`  + `)`,
+          [item.notes.trim(), n, item.manufacturer, item.model_name, specVal, condType, item.category?.trim() || null]
         );
       }
     } else if (wasActive && !isActive) {
       await removeFromInventory(
         db, item.manufacturer, item.model_name, item.quantity, item.purchase_price,
-        item.spec || '', item.condition_type || 'normal'
+        item.spec || '', item.condition_type || 'normal', item.category
       );
     }
 
@@ -383,7 +383,7 @@ router.put('/:id', auth('editor'), async (req, res) => {
     for (const it of oldItems) {
       if (it.status === 'completed' || it.status === 'priority')
         await removeFromInventory(db, it.manufacturer, it.model_name, it.quantity, it.purchase_price,
-          it.spec || '', it.condition_type || 'normal');
+          it.spec || '', it.condition_type || 'normal', it.category);
     }
 
     // 2. 기존 품목 소프트 삭제
@@ -560,7 +560,7 @@ router.delete('/:id', auth('admin'), async (req, res) => {
             );
           }
           await removeFromInventory(db, it.manufacturer, it.model_name, it.quantity, it.purchase_price,
-            specVal, condType);
+            specVal, condType, it.category);
         }
       }
 
