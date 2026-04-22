@@ -95,9 +95,12 @@ function computeStats(rows) {
       netQty    += r.quantity;
       count++;
     } else if (returnedQty > 0) {
-      netProfit -= (r.profit_per_unit || 0) * returnedQty;
-      netSales  -= (r.sale_price || 0) * returnedQty;
-      netQty    -= returnedQty;
+      // 원래 판매 전체 더하고 반품 수량만 차감 → 순판매만 반영
+      const netQtyRow = r.quantity - returnedQty;
+      netProfit += (r.profit_per_unit || 0) * netQtyRow;
+      netSales  += (r.sale_price || 0) * netQtyRow;
+      netQty    += netQtyRow;
+      if (netQtyRow > 0) count++;
     } else {
       netProfit += (r.profit_per_unit || 0) * r.quantity;
       netSales  += (r.sale_price || 0) * r.quantity;

@@ -76,53 +76,62 @@ router.get('/items', auth('editor'), async (req, res) => {
     );
 
     // sale_type 및 순수익 보정 계산
-    const result = rows.map(r => {
+    // 반품 있는 경우 원래 출고행 + 반품 차감행 두 줄로 분리 (Method B)
+    const result = rows.flatMap(r => {
       const returnedQty = Math.min(r.returned_qty || 0, r.quantity);
-      const netQty      = r.quantity - returnedQty;
 
       // B 상품 (교환 출고) — 🔄 교환으로 표시
       if (r.exchange_return_id) {
-        return {
+        return [{
           ...r,
           returned_qty:     0,
           net_quantity:     r.quantity,
           net_total_price:  r.quantity * (r.sale_price || 0),
           net_total_profit: (r.profit_per_unit || 0) * r.quantity,
           sale_type:        'exchange',
-        };
+        }];
       }
 
       // A 상품 (교환으로 반품된 원판매) — 판매현황에서 제외
-      if (r.has_exchange) return null;
+      if (r.has_exchange) return [];
 
-      let saleType;
-      if (r.has_return && returnedQty > 0) saleType = 'return_deducted';
-      else saleType = 'normal';
-
-      // 반품차감: 반품된 수량을 음수로, 순수익도 음수(환불)로 표시
-      if (saleType === 'return_deducted') {
-        return {
-          ...r,
-          returned_qty:     returnedQty,
-          net_quantity:     -returnedQty,
-          net_total_price:  -(returnedQty * (r.sale_price || 0)),
-          net_total_profit: -((r.profit_per_unit || 0) * returnedQty),
-          sale_type:        saleType,
-        };
+      // 반품 있는 경우: 원래 출고행(전체 수량) + 반품 차감행(-반품수량) 두 줄
+      if (r.has_return && returnedQty > 0) {
+        const origSaleType = r.payment_status === 'unpaid' ? 'unpaid' : 'normal';
+        return [
+          // 원래 출고행 — 전체 수량/금액 그대로 유지
+          {
+            ...r,
+            net_quantity:     r.quantity,
+            net_total_price:  r.quantity * (r.sale_price || 0),
+            net_total_profit: (r.profit_per_unit || 0) * r.quantity,
+            sale_type:        origSaleType,
+          },
+          // 반품 차감행 — 반품 수량만 음수로 별도 표시
+          {
+            ...r,
+            id:               r.id + '_return',
+            net_quantity:     -returnedQty,
+            net_total_price:  -(returnedQty * (r.sale_price || 0)),
+            net_total_profit: -((r.profit_per_unit || 0) * returnedQty),
+            sale_type:        'return_deducted',
+          },
+        ];
       }
 
-      // 미입금인 경우 sale_type을 'unpaid'로 표시 (매출은 유지)
-      if (r.payment_status === 'unpaid') saleType = 'unpaid';
+      // 정상 판매
+      const netQty   = r.quantity - returnedQty;
+      let   saleType = r.payment_status === 'unpaid' ? 'unpaid' : 'normal';
 
-      return {
+      return [{
         ...r,
         returned_qty:     returnedQty,
         net_quantity:     netQty,
         net_total_price:  netQty * (r.sale_price || 0),
         net_total_profit: (r.profit_per_unit || 0) * netQty,
         sale_type:        saleType,
-      };
-    }).filter(r => r !== null);
+      }];
+    });
 
     res.json(result);
   } catch (err) { res.status(500).json({ error: err.message }); }
