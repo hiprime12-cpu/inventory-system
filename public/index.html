@@ -769,41 +769,135 @@
               </div>
             </div>
 
-            <!-- 출고 항목 테이블 -->
-            <div class="ib-header-card" style="margin-top:.75rem;padding:0;overflow:visible">
-              <div style="display:flex;align-items:center;justify-content:space-between;padding:.65rem 1rem .5rem">
-                <span style="font-weight:700;font-size:.88rem">출고 항목</span>
-                <button type="button" class="btn btn-sm btn-ghost" id="btn-ob-add-row">+ 행 추가</button>
+            <!-- 입력 탭 -->
+            <div class="tabs ib-form-tabs" style="margin-top:.75rem">
+              <button class="tab active" data-ob-form-tab="excel">엑셀 업로드</button>
+              <button class="tab" data-ob-form-tab="direct">직접 입력</button>
+            </div>
+
+            <!-- 엑셀 업로드 탭 -->
+            <div id="ob-tab-excel" class="ib-tab-content">
+              <div class="ib-excel-bar">
+                <label class="btn btn-ghost" for="ob-excel-file" style="cursor:pointer">📂 파일 선택</label>
+                <input type="file" id="ob-excel-file" accept=".xlsx,.xls,.csv" style="display:none" />
+                <div class="ib-template-wrap">
+                  <button class="btn btn-ghost" id="btn-ob-template" type="button">⬇ 양식 다운로드</button>
+                  <div class="ib-template-note">
+                    ※ 다운로드 후 <b>2행부터</b> 데이터를 입력해주세요.<br>
+                    1행(헤더)은 수정하지 마세요.
+                  </div>
+                </div>
+                <span id="ob-excel-filename" style="color:var(--gray-600);font-size:.82rem;margin-left:.3rem"></span>
               </div>
-              <div style="overflow-x:auto">
-                <table class="tbl ob-items-tbl">
+
+              <div class="ib-excel-guide">
+                <table class="ib-excel-visual">
                   <thead>
                     <tr>
-                      <th style="width:2rem">#</th>
-                      <th style="min-width:80px">구분</th>
-                      <th style="min-width:90px">브랜드</th>
-                      <th style="min-width:130px">모델명</th>
-                      <th style="min-width:120px">스펙</th>
-                      <th style="width:60px">상태</th>
-                      <th style="width:70px">수량</th>
-                      <th style="min-width:110px">판매가</th>
-                      <th style="min-width:100px">소계</th>
-                      <th style="width:80px">세금</th>
-                      <th style="width:110px">합계</th>
-                      <th style="min-width:90px">비고</th>
-                      <th style="width:2rem"></th>
+                      <th class="ev-rn"></th>
+                      <th>A</th><th>B</th><th>C</th><th>D</th><th>E</th><th>F</th><th>G</th><th>H</th>
                     </tr>
                   </thead>
-                  <tbody id="ob-items-tbody"></tbody>
-                  <tfoot>
-                    <tr>
-                      <td colspan="9" style="text-align:right;font-weight:700;padding:.5rem 1rem">합계</td>
-                      <td id="ob-foot-tax" style="text-align:right;padding:.5rem .5rem;font-weight:600">0원</td>
-                      <td id="ob-foot-total" style="text-align:right;padding:.5rem .5rem;font-weight:700">0원</td>
-                      <td colspan="2"></td>
+                  <tbody>
+                    <tr class="ev-header">
+                      <td class="ev-rn">1</td>
+                      <td>구분</td><td>브랜드</td><td>모델명</td><td>스펙</td><td>상태</td><td>수량</td><td>판매가</td><td>비고</td>
+                      <td class="ev-badge ev-badge-lock">🔒 수정금지</td>
                     </tr>
-                  </tfoot>
+                    <tr class="ev-data-first">
+                      <td class="ev-rn ev-arrow">2 ➜</td>
+                      <td>RAM</td><td>삼성</td><td>DDR4 16G</td><td></td><td>정상</td><td>5</td><td>20,000</td><td></td>
+                      <td class="ev-badge ev-badge-start">✏️ 여기부터 입력</td>
+                    </tr>
+                    <tr class="ev-data">
+                      <td class="ev-rn">3</td>
+                      <td>노트북</td><td>LG</td><td>그램</td><td>i5 16G</td><td>불량</td><td>1</td><td>600,000</td><td></td>
+                      <td></td>
+                    </tr>
+                  </tbody>
                 </table>
+                <div class="ib-excel-tips">
+                  <span>💡 <b>구분/브랜드/모델명</b>은 재고에 등록된 것과 정확히 일치해야 함</span>
+                  <span>💡 스펙 없으면 빈칸</span>
+                  <span>💡 상태: 정상 또는 불량 (빈칸이면 정상 자동처리)</span>
+                  <span>💡 수량과 판매가는 숫자만 입력</span>
+                </div>
+              </div>
+
+              <div id="ob-excel-preview" class="hidden">
+                <div class="ib-tbl-scroll-top" id="ob-excel-tbl-scroll-top"><div class="ib-tbl-scroll-inner"></div></div>
+                <div class="ib-form-table-wrap" id="ob-excel-table-wrap">
+                  <table class="tbl" style="min-width:1050px">
+                    <colgroup>
+                      <col style="width:40px">
+                      <col style="width:80px">
+                      <col style="width:100px">
+                      <col style="width:150px">
+                      <col style="width:120px">
+                      <col style="width:70px">
+                      <col style="width:70px">
+                      <col style="width:100px">
+                      <col style="width:90px">
+                      <col style="width:80px">
+                      <col style="width:170px">
+                      <col style="width:120px">
+                    </colgroup>
+                    <thead>
+                      <tr>
+                        <th>#</th><th>구분</th><th>브랜드</th><th>모델명</th><th>스펙</th>
+                        <th>상태</th><th>수량</th><th>판매가</th><th>합계</th><th>현재재고</th><th>결과</th><th>비고</th>
+                      </tr>
+                    </thead>
+                    <tbody id="ob-excel-tbody"></tbody>
+                  </table>
+                </div>
+                <div class="ib-form-footer">
+                  <span id="ob-excel-summary" class="ib-total-summary"></span>
+                  <div style="display:flex;gap:.5rem">
+                    <button class="btn btn-ghost" id="btn-ob-excel-save-valid" type="button">정상 행만 등록</button>
+                    <button class="btn btn-primary" id="btn-ob-excel-save-all" type="button">전체 등록</button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- 직접 입력 탭 -->
+            <div id="ob-tab-direct" class="ib-tab-content hidden">
+              <div class="ib-header-card" style="padding:0;overflow:visible">
+                <div style="display:flex;align-items:center;justify-content:space-between;padding:.65rem 1rem .5rem">
+                  <span style="font-weight:700;font-size:.88rem">출고 항목</span>
+                  <button type="button" class="btn btn-sm btn-ghost" id="btn-ob-add-row">+ 행 추가</button>
+                </div>
+                <div style="overflow-x:auto">
+                  <table class="tbl ob-items-tbl">
+                    <thead>
+                      <tr>
+                        <th style="width:2rem">#</th>
+                        <th style="min-width:80px">구분</th>
+                        <th style="min-width:90px">브랜드</th>
+                        <th style="min-width:130px">모델명</th>
+                        <th style="min-width:120px">스펙</th>
+                        <th style="width:60px">상태</th>
+                        <th style="width:70px">수량</th>
+                        <th style="min-width:110px">판매가</th>
+                        <th style="min-width:100px">소계</th>
+                        <th style="width:80px">세금</th>
+                        <th style="width:110px">합계</th>
+                        <th style="min-width:90px">비고</th>
+                        <th style="width:2rem"></th>
+                      </tr>
+                    </thead>
+                    <tbody id="ob-items-tbody"></tbody>
+                    <tfoot>
+                      <tr>
+                        <td colspan="9" style="text-align:right;font-weight:700;padding:.5rem 1rem">합계</td>
+                        <td id="ob-foot-tax" style="text-align:right;padding:.5rem .5rem;font-weight:600">0원</td>
+                        <td id="ob-foot-total" style="text-align:right;padding:.5rem .5rem;font-weight:700">0원</td>
+                        <td colspan="2"></td>
+                      </tr>
+                    </tfoot>
+                  </table>
+                </div>
               </div>
             </div>
           </div><!-- /#ob-form -->

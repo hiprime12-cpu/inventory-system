@@ -1566,6 +1566,28 @@ textarea.form-control { resize: vertical; min-height: 70px; }
   width: 1px; background: var(--gray-200); align-self: stretch; margin: 0 .2rem;
 }
 
+/* ══ 출고 엑셀 업로드 미리보기 ════════════════════════════════════ */
+.ob-excel-inp {
+  width: 100%; padding: .2rem .35rem; border: 1px solid var(--gray-300);
+  border-radius: 4px; font-size: .78rem; box-sizing: border-box; background: #fff;
+}
+.ob-excel-inp:focus { outline: none; border-color: var(--primary); background: #f0f4ff; }
+.ob-excel-inp.ob-excel-err { border-color: var(--danger,#e03131); background: #fff0f0; }
+.ob-excel-num { text-align: right; }
+.ob-excel-sel { padding: .15rem .25rem; cursor: pointer; }
+
+.ob-excel-ok   { background: #f0fff4; }
+.ob-excel-warn { background: #fffbe6; }
+.ob-excel-bad  { background: #fff5f5; }
+
+.ob-excel-badge {
+  display: inline-block; font-size: .72rem; font-weight: 700;
+  padding: .1rem .45rem; border-radius: 99px; white-space: nowrap;
+}
+.ob-excel-ok-badge   { background: #d3f9d8; color: #1b5e20; }
+.ob-excel-warn-badge { background: #fff3cd; color: #856404; }
+.ob-excel-err-badge  { background: #ffe3e3; color: #c92a2a; }
+
 /* ── 뷰어 권한: 매입가·순수익 숨김 ── */
 body.viewer-mode .price-col { display: none !important; }
 
