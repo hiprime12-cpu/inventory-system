@@ -748,7 +748,7 @@ window.openVendorModal = function(prefill) {
   document.getElementById('v-is-important').value = '0';
 
   // 매입거래처 이전 상태로 숨겨진 공통 필드 복원 (출고거래처 열 때 필요)
-  ['v-name','v-biz','v-phone-inp','v-reg-addr','v-del-addr','v-notes','v-remarks'].forEach(id =>
+  ['v-company','v-name','v-biz','v-phone-inp','v-reg-addr','v-del-addr','v-notes','v-remarks'].forEach(id =>
     document.getElementById(id)?.closest('.field')?.classList.remove('hidden')
   );
   document.getElementById('v-ind-section')?.classList.add('hidden');
