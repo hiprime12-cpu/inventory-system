@@ -21,6 +21,8 @@ let _obVendorSelected  = false;  // 거래처 목록에서 선택 여부
 let _obVendorId        = null;   // 선택된 거래처 ID
 let _obExcelRows       = [];     // 파싱된 엑셀 행 (엑셀 업로드 탭)
 let _obFormTab         = 'excel'; // 'excel' | 'direct'
+let _obEditItems       = [];     // 수정 시 기존 품목 (추가 업로드 구분용)
+let _obExcelAppendMode = false;  // 엑셀 추가 업로드 모드
 
 // ── 서브페이지 전환 ──────────────────────────
 function obShowSubpage(name) {
@@ -320,6 +322,8 @@ async function obShowForm(id = null) {
 
   // 엑셀 탭 초기화
   _obExcelRows = [];
+  _obExcelAppendMode = false;
+  _obEditItems = [];
   document.getElementById('ob-excel-preview')?.classList.add('hidden');
   const obFileInp = document.getElementById('ob-excel-file');
   if (obFileInp) obFileInp.value = '';
@@ -365,6 +369,7 @@ async function obShowForm(id = null) {
 
       // 기존 행 채우기
       const items = order.items || [];
+      _obEditItems = items;
       obSetRows(Math.max(items.length, 1));
       items.forEach((it, i) => obFillRow(i, it));
     } catch (err) { toast(err.message, 'error'); return; }
@@ -758,8 +763,53 @@ function obDownloadTemplate() {
   XLSX.writeFile(wb, '출고_입력양식.xlsx');
 }
 
+// ── 업로드 방식 선택 팝업 (수정 모드) ──────────
+function obShowUploadModeModal(file, existingCount) {
+  const modal = document.getElementById('modal-excel-upload-mode');
+  if (!modal) { _obExcelAppendMode = false; obLoadExcelFile(file); return; }
+  const desc = document.getElementById('excel-mode-desc');
+  if (desc) desc.textContent = `현재 ${existingCount}개 품목이 등록되어 있습니다.\n어떻게 하시겠습니까?`;
+  modal.classList.remove('hidden');
+  function cleanup() {
+    modal.classList.add('hidden');
+    document.getElementById('btn-excel-mode-replace')?.removeEventListener('click', onReplace);
+    document.getElementById('btn-excel-mode-append')?.removeEventListener('click', onAppend);
+    document.querySelectorAll('.btn-excel-mode-cancel').forEach(b => b.removeEventListener('click', onCancel));
+  }
+  function onReplace() {
+    cleanup();
+    _obExcelAppendMode = false;
+    _obExcelRows = [];
+    obLoadExcelFile(file);
+  }
+  function onAppend() {
+    cleanup();
+    _obExcelAppendMode = true;
+    if (_obEditItems.length > 0 && !_obExcelRows.some(r => r._isExisting)) {
+      _obExcelRows = _obEditItems.map((item, idx) => ({
+        _row:           idx + 2,
+        category:       item.category      || '',
+        manufacturer:   item.manufacturer  || '',
+        model_name:     item.model_name    || '',
+        spec:           item.spec          || '',
+        condition_type: item.condition_type || 'normal',
+        quantity:       item.quantity      || null,
+        sale_price:     item.sale_price    || null,
+        notes:          item.notes         || '',
+        _status: 'ok', _stock: null, _errFields: [],
+        _isExisting: true,
+      }));
+    }
+    obLoadExcelFile(file, true);
+  }
+  function onCancel() { cleanup(); }
+  document.getElementById('btn-excel-mode-replace')?.addEventListener('click', onReplace);
+  document.getElementById('btn-excel-mode-append')?.addEventListener('click', onAppend);
+  document.querySelectorAll('.btn-excel-mode-cancel').forEach(b => b.addEventListener('click', onCancel));
+}
+
 // ── 엑셀 파일 로드 ───────────────────────────
-function obLoadExcelFile(file) {
+function obLoadExcelFile(file, appendMode = false) {
   document.getElementById('ob-excel-filename').textContent = file.name;
   const reader = new FileReader();
   reader.onload = e => {
@@ -767,7 +817,7 @@ function obLoadExcelFile(file) {
       const wb   = XLSX.read(e.target.result, { type: 'array' });
       const ws   = wb.Sheets[wb.SheetNames[0]];
       const data = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
-      obParseExcel(data.slice(1).filter(r => r.some(c => String(c).trim())));
+      obParseExcel(data.slice(1).filter(r => r.some(c => String(c).trim())), appendMode);
     } catch (err) { toast('엑셀 파일 파싱 실패: ' + err.message, 'error'); }
   };
   reader.readAsArrayBuffer(file);
@@ -775,8 +825,8 @@ function obLoadExcelFile(file) {
 
 // ── 엑셀 파싱 ────────────────────────────────
 // 컬럼 순서: A:구분 B:브랜드 C:모델명 D:수량 E:판매가 F:상태 G:스펙 H:비고
-function obParseExcel(rows) {
-  _obExcelRows = rows.map((r, idx) => {
+function obParseExcel(rows, appendMode = false) {
+  const newRows = rows.map((r, idx) => {
     const rowNum       = idx + 2;
     const category     = String(r[0] ?? '').trim();
     const manufacturer = String(r[1] ?? '').trim();
@@ -797,10 +847,16 @@ function obParseExcel(rows) {
       quantity:   (quantity   !== null && !isNaN(quantity))   ? quantity   : null,
       sale_price: (sale_price !== null && !isNaN(sale_price)) ? sale_price : null,
       notes, _status: 'missing', _stock: null, _errFields: [],
+      _isExisting: false,
     };
     obCheckRowStatus(row);
     return row;
   });
+  if (appendMode) {
+    _obExcelRows = [..._obExcelRows, ...newRows];
+  } else {
+    _obExcelRows = newRows;
+  }
   obRenderExcelPreview();
 }
 
@@ -853,30 +909,53 @@ function obRenderExcelPreview() {
   const tbody = document.getElementById('ob-excel-tbody');
   if (!tbody) return;
 
-  tbody.innerHTML = _obExcelRows.map((r, idx) => {
+  let _obShownExistingSep = false;
+  let _obShownNewSep = false;
+  let html = '';
+  _obExcelRows.forEach((r, idx) => {
+    const isExisting = !!r._isExisting;
+    if (_obExcelAppendMode) {
+      if (isExisting && !_obShownExistingSep) {
+        _obShownExistingSep = true;
+        html += `<tr class="ib-excel-batch-sep"><td colspan="12" style="text-align:center;padding:.35rem;background:#e8eaf0;color:#6b7280;font-size:.78rem;border-top:2px solid #9ca3af">─── 기존 등록 품목 ───</td></tr>`;
+      }
+      if (!isExisting && !_obShownNewSep) {
+        _obShownNewSep = true;
+        html += `<tr class="ib-excel-batch-sep"><td colspan="12" style="text-align:center;padding:.35rem;background:var(--gray-100,#f3f4f6);color:var(--gray-500,#6b7280);font-size:.78rem;border-top:2px solid var(--primary,#4f6ef7)">─── 추가 업로드 품목 ───</td></tr>`;
+      }
+    }
     const total  = (r.quantity > 0 && r.sale_price >= 0) ? r.quantity * r.sale_price : null;
     const stock  = r._stock ? r._stock.current_stock : null;
-    const rowCls = r._status === 'ok' ? 'ob-excel-ok' : r._status === 'insufficient' ? 'ob-excel-warn' : 'ob-excel-bad';
+    const rowCls = isExisting ? '' : (r._status === 'ok' ? 'ob-excel-ok' : r._status === 'insufficient' ? 'ob-excel-warn' : 'ob-excel-bad');
+    const rowStyle = isExisting ? ' style="background:#f5f6f8"' : '';
     const ec     = f => r._errFields.includes(f) ? ' ob-excel-err' : '';
-
-    return `<tr data-ob-excel-idx="${idx}" class="${rowCls}">
+    html += `<tr data-ob-excel-idx="${idx}" class="${rowCls}"${rowStyle}>
       <td style="text-align:center;color:var(--gray-400);font-size:.8rem">${r._row}</td>
-      <td><input class="ob-excel-inp" data-f="category" value="${escHtml(r.category)}" placeholder="구분" /></td>
-      <td><input class="ob-excel-inp" data-f="manufacturer" value="${escHtml(r.manufacturer)}" placeholder="브랜드" /></td>
-      <td><input class="ob-excel-inp${ec('model_name')}" data-f="model_name" value="${escHtml(r.model_name)}" placeholder="모델명 *" /></td>
-      <td><input class="ob-excel-inp" data-f="spec" value="${escHtml(r.spec)}" placeholder="스펙" /></td>
-      <td><select class="ob-excel-inp ob-excel-sel" data-f="condition_type">
+      <td><input class="ob-excel-inp" data-f="category" value="${escHtml(r.category)}" placeholder="구분"${isExisting ? ' disabled' : ''} /></td>
+      <td><input class="ob-excel-inp" data-f="manufacturer" value="${escHtml(r.manufacturer)}" placeholder="브랜드"${isExisting ? ' disabled' : ''} /></td>
+      <td><input class="ob-excel-inp${ec('model_name')}" data-f="model_name" value="${escHtml(r.model_name)}" placeholder="모델명 *"${isExisting ? ' disabled' : ''} /></td>
+      <td><input class="ob-excel-inp" data-f="spec" value="${escHtml(r.spec)}" placeholder="스펙"${isExisting ? ' disabled' : ''} /></td>
+      <td><select class="ob-excel-inp ob-excel-sel" data-f="condition_type"${isExisting ? ' disabled' : ''}>
         <option value="normal"${r.condition_type === 'normal' ? ' selected' : ''}>정상</option>
         <option value="defective"${r.condition_type === 'defective' ? ' selected' : ''}>불량</option>
       </select></td>
-      <td><input class="ob-excel-inp ob-excel-num${ec('quantity')}" data-f="quantity" type="number" min="1" value="${r.quantity != null ? r.quantity : ''}" placeholder="수량 *" /></td>
-      <td><input class="ob-excel-inp ob-excel-num${ec('sale_price')}" data-f="sale_price" type="number" min="0" value="${r.sale_price != null ? r.sale_price : ''}" placeholder="판매가 *" /></td>
+      <td><input class="ob-excel-inp ob-excel-num${ec('quantity')}" data-f="quantity" type="number" min="1" value="${r.quantity != null ? r.quantity : ''}" placeholder="수량 *"${isExisting ? ' disabled' : ''} /></td>
+      <td><input class="ob-excel-inp ob-excel-num${ec('sale_price')}" data-f="sale_price" type="number" min="0" value="${r.sale_price != null ? r.sale_price : ''}" placeholder="판매가 *"${isExisting ? ' disabled' : ''} /></td>
       <td class="ob-excel-total" style="text-align:right;font-size:.85rem">${total != null ? total.toLocaleString() + '원' : '-'}</td>
       <td class="ob-excel-stock" style="text-align:right;font-size:.85rem">${stock != null ? stock + '개' : '-'}</td>
-      <td class="ob-excel-result">${obExcelResultHtml(r, idx)}</td>
-      <td><input class="ob-excel-inp" data-f="notes" value="${escHtml(r.notes)}" placeholder="비고" /></td>
+      <td class="ob-excel-result">${isExisting ? '<span class="ob-excel-badge" style="background:#e5e7eb;color:#6b7280">기존</span>' : obExcelResultHtml(r, idx)}</td>
+      <td><input class="ob-excel-inp" data-f="notes" value="${escHtml(r.notes)}" placeholder="비고"${isExisting ? ' disabled' : ''} /></td>
     </tr>`;
-  }).join('');
+  });
+  tbody.innerHTML = html;
+
+  // 추가 등록 버튼 표시/숨김
+  const addNewBtn = document.getElementById('btn-ob-excel-add-new');
+  if (addNewBtn) {
+    const showAddNew = _obExcelAppendMode && _obEditOrderId
+      && _obExcelRows.some(r => r._isExisting) && _obExcelRows.some(r => !r._isExisting);
+    addNewBtn.style.display = showAddNew ? '' : 'none';
+  }
 
   obUpdateExcelSummary();
   document.getElementById('ob-excel-preview')?.classList.remove('hidden');
@@ -1235,11 +1314,69 @@ document.addEventListener('DOMContentLoaded', () => {
     const file = this.files?.[0];
     if (!file) return;
     this.value = '';
-    obLoadExcelFile(file);
+    if (_obEditOrderId && _obEditItems.length > 0) {
+      const existingCount = _obExcelRows.length || _obEditItems.length;
+      obShowUploadModeModal(file, existingCount);
+    } else {
+      _obExcelAppendMode = false;
+      obLoadExcelFile(file);
+    }
   });
 
   // 양식 다운로드
   document.getElementById('btn-ob-template')?.addEventListener('click', obDownloadTemplate);
+
+  // 엑셀 [추가 등록] (수정+추가 업로드 모드: 새 품목만 저장)
+  document.getElementById('btn-ob-excel-add-new')?.addEventListener('click', async () => {
+    const date = document.getElementById('ob-date')?.value?.trim();
+    if (!date) { toast('출고일을 선택하세요.', 'error'); return; }
+    const vendorInput = document.getElementById('ob-vendor-input')?.value?.trim() || '';
+    if (!vendorInput) { toast('거래처명을 입력하세요.', 'error'); return; }
+    const vendorIdVal = document.getElementById('ob-vendor-id')?.value?.trim() || '';
+
+    const newRows = _obExcelRows.filter(r => !r._isExisting && r._status === 'ok');
+    if (!newRows.length) { toast('추가할 정상 항목이 없습니다.', 'error'); return; }
+
+    const existingItems = _obEditItems.map(item => ({
+      category:       item.category      || null,
+      manufacturer:   item.manufacturer  || '',
+      model_name:     item.model_name,
+      spec:           item.spec          || '',
+      condition_type: item.condition_type || 'normal',
+      quantity:       item.quantity,
+      sale_price:     item.sale_price    || 0,
+      notes:          item.notes         || null,
+    }));
+    const newItems = newRows.map(r => ({
+      category:       r.category      || null,
+      manufacturer:   r.manufacturer  || '',
+      model_name:     r.model_name,
+      spec:           r.spec          || '',
+      condition_type: r.condition_type || 'normal',
+      quantity:       r.quantity,
+      sale_price:     r.sale_price    || 0,
+      notes:          r.notes         || null,
+    }));
+    const body = {
+      order_date:      date,
+      sales_vendor_id: vendorIdVal || null,
+      vendor_name:     vendorInput || null,
+      tax_type:        _obTaxType,
+      notes:           document.getElementById('ob-notes')?.value?.trim() || null,
+      items:           [...existingItems, ...newItems],
+    };
+    const btn = document.getElementById('btn-ob-excel-add-new');
+    if (btn) btn.disabled = true;
+    try {
+      await API.put(`/outbound/${_obEditOrderId}`, body);
+      toast(`${newItems.length}개 품목이 추가 등록되었습니다.`, 'success');
+      _obInventory = []; _obExcelRows = []; _obEditItems = []; _obExcelAppendMode = false;
+      await loadOutboundList();
+      obShowSubpage('list');
+      loadInventory();
+    } catch (err) { toast(err.message, 'error'); }
+    finally { if (btn) btn.disabled = false; }
+  });
 
   // 엑셀 [정상 행만 등록] / [전체 등록]
   document.getElementById('btn-ob-excel-save-valid')?.addEventListener('click', () => obExcelSave(true));

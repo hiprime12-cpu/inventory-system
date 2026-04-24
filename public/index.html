@@ -646,7 +646,10 @@
                 </div>
                 <div class="ib-form-footer">
                   <span id="ib-excel-total" class="ib-total-summary"></span>
-                  <button class="btn btn-primary" id="btn-ib-excel-save" type="button">일괄 등록</button>
+                  <div style="display:flex;gap:.5rem">
+                    <button class="btn btn-ghost" id="btn-ib-excel-add-new" type="button" style="display:none">추가 등록</button>
+                    <button class="btn btn-primary" id="btn-ib-excel-save" type="button">일괄 등록</button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -857,6 +860,7 @@
                 <div class="ib-form-footer">
                   <span id="ob-excel-summary" class="ib-total-summary"></span>
                   <div style="display:flex;gap:.5rem">
+                    <button class="btn btn-ghost" id="btn-ob-excel-add-new" type="button" style="display:none">추가 등록</button>
                     <button class="btn btn-ghost" id="btn-ob-excel-save-valid" type="button">정상 행만 등록</button>
                     <button class="btn btn-primary" id="btn-ob-excel-save-all" type="button">전체 등록</button>
                   </div>

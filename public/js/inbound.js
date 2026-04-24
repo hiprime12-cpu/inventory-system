@@ -13,6 +13,8 @@ let _ibFpEnd        = null;        // 검색 종료일 flatpickr
 let _ibSearchTimer  = null;        // 디바운스 타이머
 let _excelRows      = [];          // 파싱된 엑셀 행
 let _excelBatchCount = 0;          // 엑셀 업로드 배치 카운터
+let _ibEditItems       = [];       // 수정 시 기존 품목 (추가 업로드 구분용)
+let _ibExcelAppendMode = false;    // 엑셀 추가 업로드 모드
 let _directRowCount = 5;           // 직접입력 행 수
 let _ibActiveTab    = 'all';       // 목록 탭: 'all'|'completed'|'pending'|'priority'
 let _ibBulkStatus   = 'pending';   // 폼 상단 매입상태 버튼 상태
@@ -550,6 +552,8 @@ function ibShowForm(mode, order) {
   document.getElementById('ib-excel-file').value = '';
   _excelRows = [];
   _excelBatchCount = 0;
+  _ibExcelAppendMode = false;
+  _ibEditItems = (mode === 'edit' ? (order?.items || []) : []);
 
   ibShowSubpage('form');
 }
@@ -798,17 +802,41 @@ document.addEventListener('DOMContentLoaded', () => {
     if (_editOrderId) {
       // ── 수정 페이지: 기존 품목 수 확인 후 항상 팝업 표시
       const directCount   = ibGetDirectRows().length;
-      const existingCount = _excelRows.length + directCount;
+      const existingCount = _excelRows.length || _ibEditItems.length || directCount;
       if (existingCount > 0) {
         ibShowUploadModeModal(file, {
           existingCount,
           onReplace: () => {
             // 직접입력 행 초기화 + 엑셀 rows 교체
+            _ibExcelAppendMode = false;
             _directRowCount = 5;
             ibRenderDirectTable([]);
             ibLoadExcelFile(file, false);
           },
-          onAppend: () => ibLoadExcelFile(file, true),
+          onAppend: () => {
+            _ibExcelAppendMode = true;
+            // 기존 DB 품목을 _excelRows에 미리 채우기 (아직 채워지지 않은 경우)
+            if (_ibEditItems.length > 0 && !_excelRows.some(r => r._isExisting)) {
+              _excelRows = _ibEditItems.map((item, idx) => ({
+                _row:           idx + 2,
+                category:       item.category      || '',
+                manufacturer:   item.manufacturer  || '',
+                model_name:     item.model_name    || '',
+                spec:           (item.spec || '').toLowerCase().trim(),
+                product_type:   item.spec ? 'spec' : 'general',
+                quantity:       item.quantity,
+                purchase_price: item.purchase_price || 0,
+                condition_type: item.condition_type || 'normal',
+                notes:          item.notes || '',
+                status:         item.status || 'pending',
+                _errCols:       new Set(),
+                _errMsgs:       [],
+                _batch:         0,
+                _isExisting:    true,
+              }));
+            }
+            ibLoadExcelFile(file, true);
+          },
         });
       } else {
         ibLoadExcelFile(file, false);
@@ -974,10 +1002,16 @@ function ibRenderExcelPreview() {
   const statusLabel = { pending: '매입미완료', completed: '매입완료', priority: '우선등록' };
 
   let prevBatch = -1;
+  let _shownExistingSep = false;
+  let _shownNewSep = false;
   const rowHtml = _excelRows.flatMap((r, idx) => {
+    const isExisting = !!r._isExisting;
     const hasErr   = r._errCols.size > 0;
     const rowClass = hasErr ? '' : (r.status === 'priority' ? ' class="ib-row-priority"' : '');
-    const rowStyle = hasErr ? ' style="background:#fff0f0"' : '';
+    let styleParts = [];
+    if (hasErr) styleParts.push('background:#fff0f0');
+    else if (isExisting) styleParts.push('background:#f5f6f8');
+    const rowStyle = styleParts.length ? ` style="${styleParts.join(';')}"` : '';
     const total    = (r.quantity || 0) * (r.purchase_price || 0);
     const cellErr  = col => r._errCols.has(col)
       ? ' style="background:#ffd6d6;color:var(--danger);font-weight:700"' : '';
@@ -987,9 +1021,21 @@ function ibRenderExcelPreview() {
 
     const parts = [];
 
-    // 추가 업로드 배치 구분선
-    if (r._batch > 0 && r._batch !== prevBatch) {
-      parts.push(`<tr class="ib-excel-batch-sep"><td colspan="11" style="text-align:center;padding:.35rem;background:var(--gray-100,#f3f4f6);color:var(--gray-500,#6b7280);font-size:.78rem;border-top:2px solid var(--primary,#4f6ef7)">── 추가 업로드 (${r._batch}차) ──</td></tr>`);
+    if (_ibExcelAppendMode) {
+      // 추가 업로드 모드: 기존/신규 구분선
+      if (isExisting && !_shownExistingSep) {
+        _shownExistingSep = true;
+        parts.push(`<tr class="ib-excel-batch-sep"><td colspan="11" style="text-align:center;padding:.35rem;background:#e8eaf0;color:#6b7280;font-size:.78rem;border-top:2px solid #9ca3af">─── 기존 등록 품목 ───</td></tr>`);
+      }
+      if (!isExisting && !_shownNewSep) {
+        _shownNewSep = true;
+        parts.push(`<tr class="ib-excel-batch-sep"><td colspan="11" style="text-align:center;padding:.35rem;background:var(--gray-100,#f3f4f6);color:var(--gray-500,#6b7280);font-size:.78rem;border-top:2px solid var(--primary,#4f6ef7)">─── 추가 업로드 품목 ───</td></tr>`);
+      }
+    } else {
+      // 일반 추가 업로드 배치 구분선
+      if (r._batch > 0 && r._batch !== prevBatch) {
+        parts.push(`<tr class="ib-excel-batch-sep"><td colspan="11" style="text-align:center;padding:.35rem;background:var(--gray-100,#f3f4f6);color:var(--gray-500,#6b7280);font-size:.78rem;border-top:2px solid var(--primary,#4f6ef7)">── 추가 업로드 (${r._batch}차) ──</td></tr>`);
+      }
     }
     prevBatch = r._batch;
 
@@ -1016,6 +1062,14 @@ function ibRenderExcelPreview() {
   const total = _excelRows.reduce((s, r) => s + (r._errCols.size > 0 ? 0 : r.quantity * r.purchase_price), 0);
   document.getElementById('ib-excel-total').textContent = `${_excelRows.length}개 품목 / 합계 ${total.toLocaleString()}원`;
   document.getElementById('ib-excel-preview').classList.remove('hidden');
+
+  // 추가 등록 버튼 표시/숨김 (수정+추가 업로드 모드일 때만)
+  const addNewBtn = document.getElementById('btn-ib-excel-add-new');
+  if (addNewBtn) {
+    const showAddNew = _ibExcelAppendMode && _editOrderId
+      && _excelRows.some(r => r._isExisting) && _excelRows.some(r => !r._isExisting);
+    addNewBtn.style.display = showAddNew ? '' : 'none';
+  }
 
   ibInitDualScroll(
     document.querySelector('#ib-excel-preview .table-wrap'),
@@ -1331,6 +1385,35 @@ document.addEventListener('DOMContentLoaded', () => {
       if (_excelRows[idx]) _excelRows[idx].status = sel.value;
     });
     ibSave(_excelRows.filter(r => r._errCols.size === 0));
+  });
+
+  // 추가 등록 (수정+추가 업로드 모드: 새 품목만 저장)
+  document.getElementById('btn-ib-excel-add-new')?.addEventListener('click', async () => {
+    const newRows = _excelRows.filter(r => !r._isExisting && r._errCols.size === 0);
+    if (!newRows.length) { toast('추가할 정상 항목이 없습니다.', 'error'); return; }
+    const existingItems = _ibEditItems.map(item => ({
+      manufacturer:   item.manufacturer  || '',
+      model_name:     item.model_name,
+      spec:           item.spec          || '',
+      category:       item.category      || null,
+      quantity:       item.quantity,
+      purchase_price: item.purchase_price || 0,
+      condition_type: item.condition_type || 'normal',
+      status:         item.status        || 'pending',
+      notes:          item.notes         || null,
+    }));
+    const addedItems = newRows.map(r => ({
+      manufacturer:   r.manufacturer  || '',
+      model_name:     r.model_name,
+      spec:           r.spec          || '',
+      category:       r.category      || null,
+      quantity:       r.quantity,
+      purchase_price: r.purchase_price || 0,
+      condition_type: r.condition_type || 'normal',
+      status:         r.status        || 'pending',
+      notes:          r.notes         || null,
+    }));
+    ibSave([...existingItems, ...addedItems]);
   });
 
   // 양식 다운로드
