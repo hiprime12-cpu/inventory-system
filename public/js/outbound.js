@@ -1177,6 +1177,7 @@ async function obDelete() {
     _obInventory = [];
     await loadOutboundList();
     obShowSubpage('list');
+    loadInventory();
   } catch (err) { toast(err.message, 'error'); }
 }
 

@@ -1248,6 +1248,7 @@ async function ibDeleteOrder() {
     );
     await loadInboundList();
     ibShowSubpage('list');
+    loadInventory();
   } catch (err) { toast(err.message, 'error'); }
 }
 

@@ -87,14 +87,16 @@ async function removeFromInventory(db, manufacturer, modelName, qty, price, spec
 }
 
 /** 재고 수량이 0이고 활성 입고/출고 이력이 없는 orphan row 삭제. true 반환 시 삭제 */
-async function cleanupZeroInventory(db, manufacturer, modelName, spec = '', conditionType = 'normal') {
+async function cleanupZeroInventory(db, manufacturer, modelName, spec = '', conditionType = 'normal', category = null) {
   const specVal = (spec || '').toLowerCase().trim();
   const ct      = conditionType || 'normal';
+  const catVal  = (category || '').trim().toLowerCase();
 
   const inv = await db.getAsync(
     `SELECT id, current_stock FROM inventory
-     WHERE manufacturer=? AND model_name=? AND COALESCE(spec,'')=? AND condition_type=?`,
-    [manufacturer, modelName, specVal, ct]
+     WHERE manufacturer=? AND model_name=? AND COALESCE(spec,'')=? AND condition_type=?
+       AND LOWER(COALESCE(category,''))=?`,
+    [manufacturer, modelName, specVal, ct, catVal]
   );
   if (!inv || inv.current_stock > 0) return false;
 

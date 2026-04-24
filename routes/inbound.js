@@ -396,7 +396,7 @@ router.put('/:id', auth('editor'), async (req, res) => {
     for (const it of oldItems) {
       if (it.status === 'completed' || it.status === 'priority')
         await cleanupZeroInventory(db, it.manufacturer, it.model_name,
-          it.spec || '', it.condition_type || 'normal');
+          it.spec || '', it.condition_type || 'normal', it.category);
     }
 
     // 거래처 자동 생성
@@ -571,7 +571,7 @@ router.delete('/:id', auth('admin'), async (req, res) => {
       for (const it of items) {
         if (it.status === 'completed' || it.status === 'priority')
           await cleanupZeroInventory(db, it.manufacturer, it.model_name,
-            it.spec || '', it.condition_type || 'normal');
+            it.spec || '', it.condition_type || 'normal', it.category);
       }
 
       // 4. 주문 소프트 삭제 + 휴지통 이동

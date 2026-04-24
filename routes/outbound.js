@@ -364,33 +364,45 @@ router.delete('/:id', auth('editor'), async (req, res) => {
 
     const n = nowStr();
 
-    // Restore stock for each item (by condition_type)
-    for (const it of order.items) {
-      const ct = it.condition_type || 'normal';
-      const inv = await db.getAsync(
-        `SELECT id FROM inventory WHERE manufacturer=? AND model_name=? AND COALESCE(spec,'')=? AND condition_type=?`,
-        [it.manufacturer, it.model_name, it.spec || '', ct]
-      ) || await db.getAsync(
-        `SELECT id FROM inventory WHERE manufacturer=? AND model_name=? AND condition_type=?`,
-        [it.manufacturer, it.model_name, ct]
-      );
-      if (inv) {
-        await db.runAsync(
-          `UPDATE inventory SET current_stock = current_stock + ?,
-           total_outbound = total_outbound - ?, updated_at = ? WHERE id = ?`,
-          [it.quantity, it.quantity, n, inv.id]
+    await db.transaction(async () => {
+      // Restore stock for each item (category 포함 조회 → 없으면 category 제외 fallback)
+      for (const it of order.items) {
+        const ct     = it.condition_type || 'normal';
+        const catVal = (it.category || '').trim().toLowerCase();
+        const inv = await db.getAsync(
+          `SELECT id FROM inventory
+           WHERE manufacturer=? AND model_name=? AND COALESCE(spec,'')=?
+             AND condition_type=? AND LOWER(COALESCE(category,''))=?`,
+          [it.manufacturer, it.model_name, it.spec || '', ct, catVal]
+        ) || await db.getAsync(
+          `SELECT id FROM inventory
+           WHERE manufacturer=? AND model_name=? AND COALESCE(spec,'')=? AND condition_type=?`,
+          [it.manufacturer, it.model_name, it.spec || '', ct]
         );
+        if (inv) {
+          await db.runAsync(
+            `UPDATE inventory SET current_stock = MAX(0, current_stock + ?),
+             total_outbound = MAX(0, total_outbound - ?), updated_at = ? WHERE id = ?`,
+            [it.quantity, it.quantity, n, inv.id]
+          );
+        } else {
+          console.warn(
+            `[재고복구 실패] 출고삭제 시 inventory 행 없음: ` +
+            `${it.manufacturer} ${it.model_name}(spec=${it.spec||''}, cond=${ct}, cat=${catVal}) ` +
+            `qty=${it.quantity} — 재고 정합성 확인 필요`
+          );
+        }
       }
-    }
 
-    await db.runAsync(
-      `UPDATE outbound_items SET is_deleted = 1, deleted_at = ? WHERE order_id = ? AND is_deleted = 0`,
-      [n, req.params.id]
-    );
-    await db.runAsync(
-      `UPDATE outbound_orders SET is_deleted = 1, deleted_at = ? WHERE id = ?`,
-      [n, req.params.id]
-    );
+      await db.runAsync(
+        `UPDATE outbound_items SET is_deleted = 1, deleted_at = ? WHERE order_id = ? AND is_deleted = 0`,
+        [n, req.params.id]
+      );
+      await db.runAsync(
+        `UPDATE outbound_orders SET is_deleted = 1, deleted_at = ? WHERE id = ?`,
+        [n, req.params.id]
+      );
+    });
 
     await writeAuditLog('outbound_orders', req.params.id, 'delete', order, null, req.user.id);
     res.json({ message: '삭제되었습니다.' });
