@@ -740,8 +740,8 @@ function obSwitchFormTab(tab) {
 
 // ── 양식 다운로드 ─────────────────────────────
 function obDownloadTemplate() {
-  const header  = ['구분', '브랜드', '모델명', '스펙', '상태', '수량', '판매가', '비고'];
-  const example = ['RAM', '삼성', 'DDR4 16G', '', '정상', 5, 20000, ''];
+  const header  = ['구분', '브랜드', '모델명', '수량', '판매가', '상태', '스펙', '비고'];
+  const example = ['RAM', '삼성', 'DDR4 16G', 5, 20000, '정상', '', ''];
   const data    = [header, example];
   for (let i = 0; i < 14; i++) data.push(['', '', '', '', '', '', '', '']);
 
@@ -774,17 +774,17 @@ function obLoadExcelFile(file) {
 }
 
 // ── 엑셀 파싱 ────────────────────────────────
-// 컬럼 순서: A:구분 B:브랜드 C:모델명 D:스펙 E:상태 F:수량 G:판매가 H:비고
+// 컬럼 순서: A:구분 B:브랜드 C:모델명 D:수량 E:판매가 F:상태 G:스펙 H:비고
 function obParseExcel(rows) {
   _obExcelRows = rows.map((r, idx) => {
     const rowNum       = idx + 2;
     const category     = String(r[0] ?? '').trim();
     const manufacturer = String(r[1] ?? '').trim();
     const model_name   = String(r[2] ?? '').trim();
-    const spec         = String(r[3] ?? '').trim();
-    const condRaw      = String(r[4] ?? '').trim().toLowerCase();
-    const quantityRaw  = String(r[5] ?? '').trim();
-    const salePriceRaw = String(r[6] ?? '').trim();
+    const quantityRaw  = String(r[3] ?? '').trim();
+    const salePriceRaw = String(r[4] ?? '').trim();
+    const condRaw      = String(r[5] ?? '').trim().toLowerCase();
+    const spec         = String(r[6] ?? '').trim();
     const notes        = String(r[7] ?? '').trim();
 
     const condition_type = condRaw === '불량' ? 'defective' : 'normal';
