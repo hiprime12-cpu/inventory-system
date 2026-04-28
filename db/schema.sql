@@ -198,8 +198,8 @@ CREATE TABLE IF NOT EXISTS inventory (
   pending_test        INTEGER NOT NULL DEFAULT 0,
   last_vendor_id      TEXT,
   notes               TEXT,
-  updated_at          TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP),
-  UNIQUE(manufacturer, model_name, spec)
+  updated_at          TEXT NOT NULL DEFAULT (CURRENT_TIMESTAMP)
+  -- UNIQUE는 migrateInventoryCategoryKey 마이그레이션에서 (manufacturer, model_name, spec, condition_type, category) 로 생성
 );
 
 -- 8. 재고조정

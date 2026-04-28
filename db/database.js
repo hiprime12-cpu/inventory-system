@@ -701,6 +701,8 @@ async function migrateInventoryCategoryKey(adapter) {
       await adapter.runAsync(
         `UPDATE inventory SET category = LOWER(TRIM(COALESCE(category,''))) WHERE category IS DISTINCT FROM LOWER(TRIM(COALESCE(category,'')))`
       );
+      // schema.sql의 UNIQUE(manufacturer,model_name,spec) 제약 제거 (condition_type/category 미포함)
+      await adapter.runAsync(`ALTER TABLE inventory DROP CONSTRAINT IF EXISTS inventory_manufacturer_model_name_spec_key`);
       // 기존 unique 인덱스 제거 후 category 포함 재생성
       await adapter.runAsync(`DROP INDEX IF EXISTS idx_inventory_model`);
       await adapter.runAsync(`
