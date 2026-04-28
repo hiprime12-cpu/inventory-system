@@ -79,10 +79,11 @@ async function removeFromInventory(db, manufacturer, modelName, qty, price, spec
       newAvg = 0;
     }
   }
+  const newTotalInbound = Math.max(0, (inv.total_inbound || 0) - qty);
   await db.runAsync(
     `UPDATE inventory SET current_stock=?, avg_purchase_price=?,
-       total_inbound=MAX(0, total_inbound-?), updated_at=? WHERE id=?`,
-    [newStock, newAvg, qty, nowStr(), inv.id]
+       total_inbound=?, updated_at=? WHERE id=?`,
+    [newStock, newAvg, newTotalInbound, nowStr(), inv.id]
   );
 }
 

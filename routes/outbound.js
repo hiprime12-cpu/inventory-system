@@ -370,20 +370,21 @@ router.delete('/:id', auth('editor'), async (req, res) => {
         const ct     = it.condition_type || 'normal';
         const catVal = (it.category || '').trim().toLowerCase();
         const inv = await db.getAsync(
-          `SELECT id FROM inventory
+          `SELECT id, current_stock, total_outbound FROM inventory
            WHERE manufacturer=? AND model_name=? AND COALESCE(spec,'')=?
              AND condition_type=? AND LOWER(COALESCE(category,''))=?`,
           [it.manufacturer, it.model_name, it.spec || '', ct, catVal]
         ) || await db.getAsync(
-          `SELECT id FROM inventory
+          `SELECT id, current_stock, total_outbound FROM inventory
            WHERE manufacturer=? AND model_name=? AND COALESCE(spec,'')=? AND condition_type=?`,
           [it.manufacturer, it.model_name, it.spec || '', ct]
         );
         if (inv) {
+          const newStock        = Math.max(0, (inv.current_stock  || 0) + it.quantity);
+          const newTotalOutbound = Math.max(0, (inv.total_outbound || 0) - it.quantity);
           await db.runAsync(
-            `UPDATE inventory SET current_stock = MAX(0, current_stock + ?),
-             total_outbound = MAX(0, total_outbound - ?), updated_at = ? WHERE id = ?`,
-            [it.quantity, it.quantity, n, inv.id]
+            `UPDATE inventory SET current_stock = ?, total_outbound = ?, updated_at = ? WHERE id = ?`,
+            [newStock, newTotalOutbound, n, inv.id]
           );
         } else {
           console.warn(
