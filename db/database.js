@@ -2,6 +2,7 @@
 
 const path = require('path');
 const fs   = require('fs');
+const { AsyncLocalStorage } = require('node:async_hooks');
 
 let db;
 
@@ -12,25 +13,32 @@ function pgSql(sql) {
   return sql.replace(/\?/g, () => `$${++i}`);
 }
 
+// 트랜잭션 client를 비동기 컨텍스트 전반에 자동 전파
+const pgTxStorage = new AsyncLocalStorage();
+
 function makePgAdapter(pool) {
+  // 트랜잭션 중이면 해당 client, 아니면 pool 사용
+  function conn() { return pgTxStorage.getStore() || pool; }
+
   return {
     async runAsync(sql, params = []) {
-      const { rowCount } = await pool.query(pgSql(sql), params);
+      const { rowCount } = await conn().query(pgSql(sql), params);
       return { changes: rowCount };
     },
     async allAsync(sql, params = []) {
-      const { rows } = await pool.query(pgSql(sql), params);
+      const { rows } = await conn().query(pgSql(sql), params);
       return rows;
     },
     async getAsync(sql, params = []) {
-      const { rows } = await pool.query(pgSql(sql), params);
+      const { rows } = await conn().query(pgSql(sql), params);
       return rows[0] || null;
     },
     async transaction(fn) {
       const client = await pool.connect();
       try {
         await client.query('BEGIN');
-        const result = await fn(client);
+        // fn 실행 중 모든 db.runAsync/getAsync/allAsync 가 이 client를 사용
+        const result = await pgTxStorage.run(client, () => fn());
         await client.query('COMMIT');
         return result;
       } catch (err) {
