@@ -5,6 +5,7 @@ const { v4: uuidv4 } = require('uuid');
 const { getDB, nowStr } = require('../db/database');
 const auth  = require('../middleware/auth');
 const { writeAuditLog } = require('../middleware/audit');
+const { cleanupZeroInventory } = require('../db/inventoryHelpers');
 
 // ── Helper: 주문 목록 + 아이템 조회 ─────────────────────────────
 async function fetchOrdersWithItems(db, where = 'o.is_deleted = 0', params = []) {
@@ -403,6 +404,38 @@ router.delete('/:id', auth('editor'), async (req, res) => {
         `UPDATE outbound_orders SET is_deleted = 1, deleted_at = ? WHERE id = ?`,
         [n, req.params.id]
       );
+
+      // 입고 선삭제 후 출고 삭제 시 orphan 재고 정리
+      for (const it of order.items) {
+        const ct      = it.condition_type || 'normal';
+        const specVal = (it.spec || '').toLowerCase().trim();
+        const invRow  = await db.getAsync(
+          `SELECT id, category FROM inventory
+           WHERE manufacturer=? AND model_name=? AND COALESCE(spec,'')=? AND condition_type=?
+             AND LOWER(COALESCE(category,''))=?`,
+          [it.manufacturer, it.model_name, specVal, ct, (it.category || '').trim().toLowerCase()]
+        ) || await db.getAsync(
+          `SELECT id, category FROM inventory
+           WHERE manufacturer=? AND model_name=? AND COALESCE(spec,'')=? AND condition_type=?`,
+          [it.manufacturer, it.model_name, specVal, ct]
+        );
+        if (!invRow) continue;
+        const invCatVal = (invRow.category || '').trim().toLowerCase();
+        const hasIb = await db.getAsync(
+          `SELECT 1 FROM inbound
+           WHERE manufacturer=? AND model_name=? AND COALESCE(spec,'')=? AND condition_type=?
+             AND LOWER(COALESCE(category,''))=?
+             AND status IN ('completed','priority') AND is_deleted=0 LIMIT 1`,
+          [it.manufacturer, it.model_name, specVal, ct, invCatVal]
+        );
+        if (!hasIb) {
+          await db.runAsync(
+            `UPDATE inventory SET current_stock=0, avg_purchase_price=0, updated_at=? WHERE id=?`,
+            [n, invRow.id]
+          );
+          await cleanupZeroInventory(db, it.manufacturer, it.model_name, specVal, ct, invRow.category);
+        }
+      }
     });
 
     await writeAuditLog('outbound_orders', req.params.id, 'delete', order, null, req.user.id);

@@ -426,8 +426,15 @@ router.delete('/:id', auth('admin'), async (req, res) => {
         }
 
       } else if (t.table_name === 'outbound_orders') {
+        const obItems = await db.allAsync(
+          'SELECT * FROM outbound_items WHERE order_id=?', [t.record_id]
+        );
         await db.runAsync('DELETE FROM outbound_items WHERE order_id=?', [t.record_id]);
         await db.runAsync('DELETE FROM outbound_orders WHERE id=?', [t.record_id]);
+        for (const it of obItems) {
+          await cleanupZeroInventory(db, it.manufacturer, it.model_name,
+            it.spec || '', it.condition_type || 'normal', it.category);
+        }
 
       } else if (t.table_name === 'return_orders') {
         const retOrder = await db.getAsync('SELECT * FROM return_orders WHERE id=?', [t.record_id]);
