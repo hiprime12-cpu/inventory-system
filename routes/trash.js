@@ -374,19 +374,50 @@ router.delete('/:id', auth('admin'), async (req, res) => {
 
     await db.transaction(async () => {
       if (t.table_name === 'inbound_orders') {
-        // 1. 하위 품목 전체 조회 (재고 정리용으로 상세 데이터 필요)
+        // 1. 하위 품목 전체 조회
         const items = await db.allAsync(
           'SELECT * FROM inbound WHERE order_id=?', [t.record_id]
         );
-        // 2. 매입가 수정이력 삭제
+        // 2. 남은 활성 입고 기준으로 평균매입가 재계산 (영구삭제 전 보정)
+        const n = nowStr();
+        for (const it of items) {
+          if (it.status === 'completed' || it.status === 'priority') {
+            const specVal  = (it.spec || '').toLowerCase().trim();
+            const condType = it.condition_type || 'normal';
+            const catVal   = (it.category || '').trim().toLowerCase();
+            const inv = await db.getAsync(
+              `SELECT * FROM inventory
+               WHERE manufacturer=? AND model_name=? AND COALESCE(spec,'')=? AND condition_type=?
+                 AND LOWER(COALESCE(category,''))=?`,
+              [it.manufacturer, it.model_name, specVal, condType, catVal]
+            );
+            if (inv) {
+              const remaining = await db.allAsync(
+                `SELECT quantity, purchase_price FROM inbound
+                 WHERE manufacturer=? AND model_name=? AND COALESCE(spec,'')=? AND condition_type=?
+                   AND LOWER(COALESCE(category,''))=?
+                   AND status IN ('completed','priority') AND is_deleted=0`,
+                [it.manufacturer, it.model_name, specVal, condType, catVal]
+              );
+              const remQty = remaining.reduce((s, r) => s + r.quantity, 0);
+              const remVal = remaining.reduce((s, r) => s + r.quantity * r.purchase_price, 0);
+              const newAvg = remQty > 0 ? remVal / remQty : 0;
+              await db.runAsync(
+                `UPDATE inventory SET avg_purchase_price=?, updated_at=? WHERE id=?`,
+                [newAvg, n, inv.id]
+              );
+            }
+          }
+        }
+        // 3. 매입가 수정이력 삭제
         for (const it of items) {
           await db.runAsync('DELETE FROM inbound_price_history WHERE inbound_id=?', [it.id]);
         }
-        // 3. 입고 품목 삭제
+        // 4. 입고 품목 삭제
         await db.runAsync('DELETE FROM inbound WHERE order_id=?', [t.record_id]);
-        // 4. 입고 주문 삭제
+        // 5. 입고 주문 삭제
         await db.runAsync('DELETE FROM inbound_orders WHERE id=?', [t.record_id]);
-        // 5. 재고 0 된 orphan row 정리 (소프트삭제 시 미처리된 케이스 포함)
+        // 6. 재고 0 된 orphan row 정리
         for (const it of items) {
           if (it.status === 'completed' || it.status === 'priority') {
             await cleanupZeroInventory(db, it.manufacturer, it.model_name,

@@ -547,32 +547,40 @@ router.delete('/:id', auth('admin'), async (req, res) => {
     await db.transaction(async () => {
       const n = nowStr();
 
-      // 1. 재고 차감 (completed/priority 품목)
+      // 1. 품목 소프트 삭제 먼저 (이후 remaining 쿼리에서 제외하기 위해)
+      await db.runAsync('UPDATE inbound SET is_deleted=1, deleted_at=? WHERE order_id=?', [n, req.params.id]);
+
+      // 2. 남은 활성 입고 기준으로 평균매입가 재계산 + 재고 차감
       for (const it of items) {
         if (it.status === 'completed' || it.status === 'priority') {
           const specVal  = (it.spec || '').toLowerCase().trim();
           const condType = it.condition_type || 'normal';
           const catVal   = (it.category || '').trim().toLowerCase();
           const inv = await db.getAsync(
-            `SELECT id, current_stock FROM inventory
+            `SELECT * FROM inventory
              WHERE manufacturer=? AND model_name=? AND COALESCE(spec,'')=? AND condition_type=?
                AND LOWER(COALESCE(category,''))=?`,
             [it.manufacturer, it.model_name, specVal, condType, catVal]
           );
-          if (!inv) {
-            console.warn(
-              `[재고차감 실패] 입고삭제 시 inventory 행 없음: ` +
-              `${it.manufacturer} ${it.model_name}(spec=${specVal}, cond=${condType}, cat=${catVal}) ` +
-              `qty=${it.quantity} — 재고 정합성 확인 필요`
-            );
-          }
-          await removeFromInventory(db, it.manufacturer, it.model_name, it.quantity, it.purchase_price,
-            specVal, condType, it.category);
+          if (!inv) continue;
+          const remaining = await db.allAsync(
+            `SELECT quantity, purchase_price FROM inbound
+             WHERE manufacturer=? AND model_name=? AND COALESCE(spec,'')=? AND condition_type=?
+               AND LOWER(COALESCE(category,''))=?
+               AND status IN ('completed','priority') AND is_deleted=0`,
+            [it.manufacturer, it.model_name, specVal, condType, catVal]
+          );
+          const remQty = remaining.reduce((s, r) => s + r.quantity, 0);
+          const remVal = remaining.reduce((s, r) => s + r.quantity * r.purchase_price, 0);
+          const newAvg = remQty > 0 ? remVal / remQty : 0;
+          const newStock = Math.max(0, inv.current_stock - it.quantity);
+          const newTotalInbound = Math.max(0, (inv.total_inbound || 0) - it.quantity);
+          await db.runAsync(
+            `UPDATE inventory SET current_stock=?, avg_purchase_price=?, total_inbound=?, updated_at=? WHERE id=?`,
+            [newStock, newAvg, newTotalInbound, n, inv.id]
+          );
         }
       }
-
-      // 2. 품목 소프트 삭제 (cleanupZeroInventory 전에 먼저 처리해야 is_deleted=1로 체크 가능)
-      await db.runAsync('UPDATE inbound SET is_deleted=1, deleted_at=? WHERE order_id=?', [n, req.params.id]);
 
       // 3. 재고 0 된 orphan row 정리
       for (const it of items) {
