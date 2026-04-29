@@ -484,6 +484,48 @@ router.delete('/:id', auth('editor'), async (req, res) => {
       }
     }
 
+    // ── 재고 역처리 (확정 상태였을 때만) ──────────────────────────
+    if (order.status === 'normal') {
+      for (const item of order.return_items) {
+        const inv = await getInv(db, item.manufacturer, item.model_name, item.spec, 'normal');
+        if (inv) {
+          await db.runAsync(
+            `UPDATE inventory SET current_stock = current_stock - ?, normal_returns = normal_returns - ?, updated_at = ? WHERE id = ?`,
+            [item.quantity, item.quantity, n, inv.id]
+          );
+        }
+      }
+    } else if (order.status === 'defective') {
+      for (const item of order.return_items) {
+        const defInv = await getInv(db, item.manufacturer, item.model_name, item.spec, 'defective');
+        if (defInv) {
+          await db.runAsync(
+            `UPDATE inventory SET current_stock = current_stock - ?, updated_at = ? WHERE id = ?`,
+            [item.quantity, n, defInv.id]
+          );
+        }
+      }
+    } else if (order.status === 'exchange_done') {
+      for (const item of order.return_items) {
+        const inv = await getInv(db, item.manufacturer, item.model_name, item.spec, 'normal');
+        if (inv) {
+          await db.runAsync(
+            `UPDATE inventory SET current_stock = current_stock - ?, normal_returns = normal_returns - ?, updated_at = ? WHERE id = ?`,
+            [item.quantity, item.quantity, n, inv.id]
+          );
+        }
+      }
+      for (const item of order.exchange_items) {
+        const inv = await getInv(db, item.manufacturer, item.model_name, item.spec, 'normal');
+        if (inv) {
+          await db.runAsync(
+            `UPDATE inventory SET current_stock = current_stock + ?, total_outbound = total_outbound - ?, updated_at = ? WHERE id = ?`,
+            [item.quantity, item.quantity, n, inv.id]
+          );
+        }
+      }
+    }
+
     await db.runAsync(
       `UPDATE return_orders SET is_deleted = 1, deleted_at = ? WHERE id = ?`,
       [n, req.params.id]

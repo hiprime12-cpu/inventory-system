@@ -399,9 +399,18 @@ router.delete('/:id', auth('admin'), async (req, res) => {
         await db.runAsync('DELETE FROM outbound_orders WHERE id=?', [t.record_id]);
 
       } else if (t.table_name === 'return_orders') {
+        const retOrder = await db.getAsync('SELECT * FROM return_orders WHERE id=?', [t.record_id]);
+        const retItems = retOrder ? await db.allAsync('SELECT * FROM return_items WHERE return_order_id=?', [t.record_id]) : [];
         await db.runAsync('DELETE FROM return_items WHERE return_order_id=?', [t.record_id]);
         await db.runAsync('DELETE FROM exchange_items WHERE return_order_id=?', [t.record_id]);
         await db.runAsync('DELETE FROM return_orders WHERE id=?', [t.record_id]);
+        if (retOrder && retItems.length > 0) {
+          const condType = retOrder.status === 'defective' ? 'defective' : 'normal';
+          for (const item of retItems) {
+            await cleanupZeroInventory(db, item.manufacturer, item.model_name,
+              item.spec || '', condType, item.category);
+          }
+        }
 
       } else {
         await db.runAsync(`DELETE FROM ${t.table_name} WHERE id=?`, [t.record_id]);
