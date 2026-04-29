@@ -471,10 +471,12 @@ router.put('/:id', auth('editor'), async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-// POST /admin/cleanup-orphan-inventory — 기존 고아/불일치 재고 row 일괄 정리 (admin only)
+// POST /admin/cleanup-orphan-inventory — 고아/불일치 재고 row 일괄 정리 (admin only)
+// ?dry_run=true 이면 조회만 하고 실제 변경 없음
 router.post('/admin/cleanup-orphan-inventory', auth('admin'), async (req, res) => {
   try {
-    const db = getDB();
+    const db      = getDB();
+    const dryRun  = req.query.dry_run === 'true';
     const allRows = await db.allAsync(
       `SELECT id, manufacturer, model_name, COALESCE(spec,'') AS spec, condition_type,
               LOWER(COALESCE(category,'')) AS category, current_stock
@@ -495,36 +497,35 @@ router.post('/admin/cleanup-orphan-inventory', auth('admin'), async (req, res) =
            AND status IN ('completed','priority') AND is_deleted=0`,
         [row.manufacturer, row.model_name, row.spec, row.condition_type, row.category]
       );
-      // 활성 출고 합계 (출고는 condition_type별 분리 없음 → 정상 재고에서만 차감)
+      // 활성 출고 합계 (category 포함, 정상 재고에서만 차감)
       const obSum = row.condition_type === 'normal'
         ? await db.getAsync(
             `SELECT COALESCE(SUM(quantity),0) AS total FROM outbound_items
-             WHERE manufacturer=? AND model_name=? AND COALESCE(spec,'')=? AND is_deleted=0`,
-            [row.manufacturer, row.model_name, row.spec]
+             WHERE manufacturer=? AND model_name=? AND COALESCE(spec,'')=?
+               AND LOWER(COALESCE(category,''))=? AND is_deleted=0`,
+            [row.manufacturer, row.model_name, row.spec, row.category]
           )
         : { total: 0 };
 
       const expectedStock = Math.max(0, (ibSum?.total || 0) - (obSum?.total || 0));
 
       if (expectedStock === 0) {
-        // 활성 이력 없으면 row 삭제
-        await db.runAsync('DELETE FROM inventory WHERE id=?', [row.id]);
+        if (!dryRun) await db.runAsync('DELETE FROM inventory WHERE id=?', [row.id]);
         deleted++;
-        log.push(`[삭제] ${row.manufacturer} ${row.model_name}(${row.spec||'-'}) 재고:${row.current_stock}→0`);
+        log.push(`[${dryRun?'예정:삭제':'삭제'}] ${row.manufacturer} ${row.model_name}(cat:${row.category||'-'}, spec:${row.spec||'-'}, cond:${row.condition_type}) 재고:${row.current_stock}→0`);
       } else if (expectedStock !== row.current_stock) {
-        // 수량 불일치 → 보정
-        await db.runAsync(
+        if (!dryRun) await db.runAsync(
           'UPDATE inventory SET current_stock=?, updated_at=? WHERE id=?',
           [expectedStock, nowStr(), row.id]
         );
         fixed++;
-        log.push(`[보정] ${row.manufacturer} ${row.model_name}(${row.spec||'-'}) 재고:${row.current_stock}→${expectedStock}`);
+        log.push(`[${dryRun?'예정:보정':'보정'}] ${row.manufacturer} ${row.model_name}(cat:${row.category||'-'}, spec:${row.spec||'-'}, cond:${row.condition_type}) 재고:${row.current_stock}→${expectedStock}`);
       } else {
-        kept.push(`${row.manufacturer} ${row.model_name}`);
+        kept.push(`${row.manufacturer} ${row.model_name}(cat:${row.category||'-'})`);
       }
     }
 
-    res.json({ deleted, fixed, kept: kept.length, log, message: `삭제 ${deleted}건, 보정 ${fixed}건, 정상 ${kept.length}건` });
+    res.json({ dry_run: dryRun, deleted, fixed, kept: kept.length, log, message: `${dryRun?'[DRY RUN] ':''}삭제 ${deleted}건, 보정 ${fixed}건, 정상 ${kept.length}건` });
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

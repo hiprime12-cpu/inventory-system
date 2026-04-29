@@ -104,15 +104,17 @@ async function cleanupZeroInventory(db, manufacturer, modelName, spec = '', cond
   const hasInbound = await db.getAsync(
     `SELECT 1 FROM inbound
      WHERE manufacturer=? AND model_name=? AND COALESCE(spec,'')=? AND condition_type=?
+       AND LOWER(COALESCE(category,''))=?
        AND status IN ('completed','priority') AND is_deleted=0 LIMIT 1`,
-    [manufacturer, modelName, specVal, ct]
+    [manufacturer, modelName, specVal, ct, catVal]
   );
   if (hasInbound) return false;
 
   const hasOutbound = await db.getAsync(
     `SELECT 1 FROM outbound_items
-     WHERE manufacturer=? AND model_name=? AND COALESCE(spec,'')=? AND is_deleted=0 LIMIT 1`,
-    [manufacturer, modelName, specVal]
+     WHERE manufacturer=? AND model_name=? AND COALESCE(spec,'')=?
+       AND LOWER(COALESCE(category,''))=? AND is_deleted=0 LIMIT 1`,
+    [manufacturer, modelName, specVal, catVal]
   );
   if (hasOutbound) return false;
 
