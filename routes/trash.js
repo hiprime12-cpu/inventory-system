@@ -63,7 +63,7 @@ async function buildSummary(db, tableName, recordId) {
 
     if (tableName === 'outbound_orders') {
       const items = await db.allAsync(
-        `SELECT * FROM outbound_items WHERE order_id = ? AND is_deleted = 0 ORDER BY created_at`, [recordId]
+        `SELECT * FROM outbound_items WHERE order_id = ? ORDER BY created_at`, [recordId]
       );
       const display_name = `${row.order_date || ''} ${row.vendor_name || ''}`.trim();
       const text = [

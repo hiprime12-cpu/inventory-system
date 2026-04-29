@@ -4,7 +4,7 @@ const router = require('express').Router();
 const { v4: uuidv4 } = require('uuid');
 const { getDB, nowStr } = require('../db/database');
 const auth  = require('../middleware/auth');
-const { writeAuditLog } = require('../middleware/audit');
+const { writeAuditLog, moveToTrash } = require('../middleware/audit');
 const { cleanupZeroInventory } = require('../db/inventoryHelpers');
 
 // ── Helper: 주문 목록 + 아이템 조회 ─────────────────────────────
@@ -436,6 +436,8 @@ router.delete('/:id', auth('editor'), async (req, res) => {
           await cleanupZeroInventory(db, it.manufacturer, it.model_name, specVal, ct, invRow.category);
         }
       }
+
+      await moveToTrash('outbound_orders', req.params.id, req.user.id);
     });
 
     await writeAuditLog('outbound_orders', req.params.id, 'delete', order, null, req.user.id);
