@@ -155,6 +155,8 @@ router.put('/items/:itemId/status', auth('editor'), async (req, res) => {
         db, item.manufacturer, item.model_name, item.quantity, item.purchase_price,
         item.spec || '', item.condition_type || 'normal', item.category
       );
+      await cleanupZeroInventory(db, item.manufacturer, item.model_name,
+        item.spec || '', item.condition_type || 'normal', item.category);
     }
 
     const updated = await db.getAsync('SELECT * FROM inbound WHERE id = ?', [item.id]);
