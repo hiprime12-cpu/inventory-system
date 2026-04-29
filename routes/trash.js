@@ -374,9 +374,9 @@ router.delete('/:id', auth('admin'), async (req, res) => {
 
     await db.transaction(async () => {
       if (t.table_name === 'inbound_orders') {
-        // 1. 하위 품목 ID 조회
+        // 1. 하위 품목 전체 조회 (재고 정리용으로 상세 데이터 필요)
         const items = await db.allAsync(
-          'SELECT id FROM inbound WHERE order_id=?', [t.record_id]
+          'SELECT * FROM inbound WHERE order_id=?', [t.record_id]
         );
         // 2. 매입가 수정이력 삭제
         for (const it of items) {
@@ -386,6 +386,13 @@ router.delete('/:id', auth('admin'), async (req, res) => {
         await db.runAsync('DELETE FROM inbound WHERE order_id=?', [t.record_id]);
         // 4. 입고 주문 삭제
         await db.runAsync('DELETE FROM inbound_orders WHERE id=?', [t.record_id]);
+        // 5. 재고 0 된 orphan row 정리 (소프트삭제 시 미처리된 케이스 포함)
+        for (const it of items) {
+          if (it.status === 'completed' || it.status === 'priority') {
+            await cleanupZeroInventory(db, it.manufacturer, it.model_name,
+              it.spec || '', it.condition_type || 'normal', it.category);
+          }
+        }
 
       } else if (t.table_name === 'outbound_orders') {
         await db.runAsync('DELETE FROM outbound_items WHERE order_id=?', [t.record_id]);

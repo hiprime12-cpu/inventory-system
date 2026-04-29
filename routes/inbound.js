@@ -476,7 +476,8 @@ router.post('/admin/cleanup-orphan-inventory', auth('admin'), async (req, res) =
   try {
     const db = getDB();
     const allRows = await db.allAsync(
-      `SELECT id, manufacturer, model_name, COALESCE(spec,'') AS spec, condition_type, current_stock
+      `SELECT id, manufacturer, model_name, COALESCE(spec,'') AS spec, condition_type,
+              LOWER(COALESCE(category,'')) AS category, current_stock
        FROM inventory`
     );
 
@@ -486,12 +487,13 @@ router.post('/admin/cleanup-orphan-inventory', auth('admin'), async (req, res) =
     const log   = [];
 
     for (const row of allRows) {
-      // 활성 입고 합계
+      // 활성 입고 합계 (category 포함)
       const ibSum = await db.getAsync(
         `SELECT COALESCE(SUM(quantity),0) AS total FROM inbound
          WHERE manufacturer=? AND model_name=? AND COALESCE(spec,'')=? AND condition_type=?
+           AND LOWER(COALESCE(category,''))=?
            AND status IN ('completed','priority') AND is_deleted=0`,
-        [row.manufacturer, row.model_name, row.spec, row.condition_type]
+        [row.manufacturer, row.model_name, row.spec, row.condition_type, row.category]
       );
       // 활성 출고 합계 (출고는 condition_type별 분리 없음 → 정상 재고에서만 차감)
       const obSum = row.condition_type === 'normal'
@@ -547,15 +549,17 @@ router.delete('/:id', auth('admin'), async (req, res) => {
         if (it.status === 'completed' || it.status === 'priority') {
           const specVal  = (it.spec || '').toLowerCase().trim();
           const condType = it.condition_type || 'normal';
+          const catVal   = (it.category || '').trim().toLowerCase();
           const inv = await db.getAsync(
             `SELECT id, current_stock FROM inventory
-             WHERE manufacturer=? AND model_name=? AND COALESCE(spec,'')=? AND condition_type=?`,
-            [it.manufacturer, it.model_name, specVal, condType]
+             WHERE manufacturer=? AND model_name=? AND COALESCE(spec,'')=? AND condition_type=?
+               AND LOWER(COALESCE(category,''))=?`,
+            [it.manufacturer, it.model_name, specVal, condType, catVal]
           );
           if (!inv) {
             console.warn(
               `[재고차감 실패] 입고삭제 시 inventory 행 없음: ` +
-              `${it.manufacturer} ${it.model_name}(spec=${specVal}, cond=${condType}) ` +
+              `${it.manufacturer} ${it.model_name}(spec=${specVal}, cond=${condType}, cat=${catVal}) ` +
               `qty=${it.quantity} — 재고 정합성 확인 필요`
             );
           }
